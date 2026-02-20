@@ -5,7 +5,7 @@ services:
     plan: free
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: npx serve -s dist
+    startCommand: npx serve -s dist -l $PORT
     envVars:
       - key: VITE_API_URL
         value: https://proyecto-esmeralda.onrender.com
