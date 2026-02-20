@@ -13,7 +13,6 @@ import {
   Collapse,
   IconButton,
   Box,
-  Grid,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PersonIcon from "@mui/icons-material/Person";
@@ -78,8 +77,8 @@ export default function OrderManager({
   const navigate = useNavigate();
 
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
-  const [productsSectionOpen, setProductsSectionOpen] = useState(true);
-  const [summarySectionOpen, setSummarySectionOpen] = useState(true);
+  // const [productsSectionOpen, setProductsSectionOpen] = useState(true);
+  // const [summarySectionOpen, setSummarySectionOpen] = useState(true);
 
   /* ================= CONFIRM ORDER ================= */
 
@@ -129,8 +128,8 @@ export default function OrderManager({
     setConfirmStep("FORM");
     setConfirmOpen(false);
     setClientSectionOpen(true);
-    setProductsSectionOpen(true);
-    setSummarySectionOpen(true);
+    // setProductsSectionOpen(true);
+    // setSummarySectionOpen(true);
   };
 
   const closeConfirmModal = () => {
