@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: esmeralda-frontend
+    branch: main
+    buildCommand: npm install && npm run build
+    runtime: static
+    envVars:
+      - key: VITE_API_URL
+        value: https://proyecto-esmeralda.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
