@@ -15,10 +15,26 @@ import {
   Box,
   useTheme,
   useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Checkbox,
+  FormControlLabel,
+  CircularProgress,
 } from "@mui/material";
 import MapIcon from "@mui/icons-material/Map";
 import api from "../../api/api";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
 /* ============================================================
    TYPES
 ============================================================ */
@@ -27,6 +43,7 @@ interface Order {
   id: number;
   status: string;
   client: {
+    id: number;
     name: string;
     phone: string;
     municipality: string;
@@ -35,6 +52,8 @@ interface Order {
   total_amount: number;
   payment_method: "CASH" | "TRANSFER" | "BOTH";
   delivery_date: string;
+  delivery_latitude?: number;
+  delivery_longitude?: number;
 }
 
 const MUNICIPALITY_ORDER = ["Centro", "Norte", "Sur", "Este", "Oeste"];
@@ -47,10 +66,14 @@ export default function DriverOrders() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
+  const loggedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [orders, setOrders] = useState<Order[]>([]);
   const [filterZone, setFilterZone] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] = useState("");
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [loadingDelivery, setLoadingDelivery] = useState(false);
 
   /* ============================================================
      FETCH - SOLO PEDIDOS DE HOY
@@ -176,6 +199,52 @@ export default function DriverOrders() {
       };
     }, [filteredOrders, deliveredOrders]);
   /* ============================================================
+     DELIVERY CONFIRMATION
+  ============================================================ */
+
+  const openConfirmModal = (order: Order) => {
+    setSelectedOrder(order);
+    setPaymentConfirmed(false);
+    setConfirmModalOpen(true);
+  };
+
+  const confirmDelivery = async () => {
+    if (!selectedOrder || !paymentConfirmed) return;
+
+    setLoadingDelivery(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const now = new Date().toISOString();
+
+          await api.patch(`/orders/${selectedOrder.id}/deliver`, {
+            new_status: "DELIVERED",
+            delivery_latitude: position.coords.latitude,
+            delivery_longitude: position.coords.longitude,
+            gps_updated_by: loggedUser?.id,
+            gps_updated_at: now,
+            delivered_at: now,
+            payment_confirmed: true,
+          });
+
+          setConfirmModalOpen(false);
+          fetchOrders();
+        } catch (err) {
+          console.error("Error confirmando entrega", err);
+        } finally {
+          setLoadingDelivery(false);
+        }
+      },
+      (error) => {
+        console.error("GPS error:", error);
+        setLoadingDelivery(false);
+      },
+      { enableHighAccuracy: true },
+    );
+  };
+
+  /* ============================================================
      STATUS HANDLER
   ============================================================ */
 
@@ -186,7 +255,9 @@ export default function DriverOrders() {
 
     fetchOrders();
   };
-
+  const ordersWithGps = filteredOrders.filter(
+    (o) => o.delivery_latitude && o.delivery_longitude,
+  );
   /* ============================================================
      RENDER
   ============================================================ */
@@ -216,24 +287,57 @@ export default function DriverOrders() {
             justifyContent="space-between"
           >
             <Typography>
-              Total estimado: ${estimatedTotal.toFixed(2)}
+              Total estimado: $ {estimatedTotal.toLocaleString("en-ES")}
             </Typography>
-
             <Typography color="success.main">
-              Total entregado: ${deliveredTotal.toFixed(2)}
+              Total entregado: $ {deliveredTotal.toLocaleString("en-ES")}
             </Typography>
-
             <Typography color="success.main">
-              Efectivo: ${cashTotal.toFixed(2)}
+              Efectivo: $ {cashTotal.toLocaleString("en-ES")}
             </Typography>
-
             <Typography color="info.main">
-              Transferencia: ${transferTotal.toFixed(2)}
+              Transferencia: $ {transferTotal.toLocaleString("en-ES")}
             </Typography>
           </Stack>
         </Stack>
       </Paper>
+      {/* MAPA OPENSTREETMAP */}
+      {ordersWithGps.length > 0 && (
+        <Paper sx={{ mb: 4, borderRadius: 3, overflow: "hidden" }}>
+          <Typography p={2} fontWeight="bold">
+            📍 Pedidos georreferenciados
+          </Typography>
 
+          <MapContainer
+            center={[
+              ordersWithGps[0].delivery_latitude!,
+              ordersWithGps[0].delivery_longitude!,
+            ]}
+            zoom={13}
+            style={{ height: "400px", width: "100%" }}
+          >
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+            {ordersWithGps.map((order) => (
+              <Marker
+                key={order.id}
+                position={[order.delivery_latitude!, order.delivery_longitude!]}
+              >
+                <Popup>
+                  <strong>Pedido #{order.id}</strong>
+                  <br />
+                  Cliente: {order.client.name}
+                  <br />
+                  Monto: ${order.total_amount}
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </Paper>
+      )}
       {/* FILTROS */}
       <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={4}>
         <TextField
@@ -275,7 +379,6 @@ export default function DriverOrders() {
             <CardContent>
               <Stack spacing={1}>
                 <Typography fontWeight="bold">Pedido #{order.id}</Typography>
-
                 <Typography>Cliente: {order.client.name}</Typography>
                 <Typography component="a" href={`tel:${order.client.phone}`}>
                   Tel: {order.client.phone}
@@ -299,7 +402,7 @@ export default function DriverOrders() {
                     <Button
                       variant="contained"
                       color="success"
-                      onClick={() => changeStatus(order, "DELIVERED")}
+                      onClick={() => openConfirmModal(order)}
                     >
                       Entregado
                     </Button>
@@ -341,6 +444,44 @@ export default function DriverOrders() {
       >
         Ver mapa de ruta
       </Button>
+      {/* MODAL CONFIRMACIÓN */}
+      <Dialog
+        open={confirmModalOpen}
+        onClose={() => setConfirmModalOpen(false)}
+        fullWidth
+      >
+        <DialogTitle>Confirmar entrega</DialogTitle>
+        <DialogContent>
+          <Typography mb={2}>
+            ¿Confirmás que el pedido fue entregado?
+          </Typography>
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={paymentConfirmed}
+                onChange={(e) => setPaymentConfirmed(e.target.checked)}
+              />
+            }
+            label="Confirmo que el pago fue recibido"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmModalOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="success"
+            disabled={!paymentConfirmed || loadingDelivery}
+            onClick={confirmDelivery}
+          >
+            {loadingDelivery ? (
+              <CircularProgress size={20} />
+            ) : (
+              "Confirmar entrega"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
