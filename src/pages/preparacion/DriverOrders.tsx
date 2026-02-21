@@ -277,8 +277,12 @@ export default function DriverOrders() {
                 <Typography fontWeight="bold">Pedido #{order.id}</Typography>
 
                 <Typography>Cliente: {order.client.name}</Typography>
-                <Typography>Tel: {order.client.phone}</Typography>
-                <Typography>Monto: ${order.total_amount}</Typography>
+                <Typography component="a" href={`tel:${order.client.phone}`}>
+                  Tel: {order.client.phone}
+                </Typography>
+                <Typography fontWeight="bold" fontSize="1.2rem">
+                  ${order.total_amount}
+                </Typography>
 
                 <Stack direction="row" spacing={1}>
                   {order.status === "ASSIGNED" && (

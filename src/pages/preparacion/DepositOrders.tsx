@@ -55,6 +55,33 @@ interface Order {
   delivery_date: string;
   observations?: string;
 }
+/* ============================================================
+   DATE HELPERS EXTRA
+============================================================ */
+
+const isTomorrow = (dateString: string) => {
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+
+  const d = new Date(dateString);
+
+  return (
+    d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate()
+  );
+};
+
+const isPastDate = (dateString: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const d = new Date(dateString);
+  d.setHours(0, 0, 0, 0);
+
+  return d < today;
+};
 
 /* ============================================================
    COMPONENT
@@ -130,6 +157,7 @@ export default function DepositOrders() {
     const interval = setInterval(fetchOrders, 10000);
     return () => clearInterval(interval);
   }, []);
+
   useEffect(() => {
     const enableAudio = () => {
       const audio = audioRef.current;
@@ -282,15 +310,28 @@ export default function DepositOrders() {
       {
         field: "delivery_date",
         headerName: "Fecha entrega",
-        flex: 1,
+        flex: 1.2,
         renderCell: (params) => {
-          const today = isToday(params.row.delivery_date);
+          const date = params.row.delivery_date;
+
+          const today = isToday(date);
+          const tomorrow = isTomorrow(date);
+          const past = isPastDate(date);
 
           return (
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography>{formatDateAR(params.row.delivery_date)}</Typography>
+              <Typography
+                fontWeight={past ? "bold" : "normal"}
+                color={past ? "error" : "inherit"}
+              >
+                {formatDateAR(date)}
+              </Typography>
 
               {today && <Chip label="HOY" color="error" size="small" />}
+
+              {tomorrow && <Chip label="MAÑANA" color="warning" size="small" />}
+
+              {past && <Chip label="VENCIDO" color="error" size="small" />}
             </Stack>
           );
         },
