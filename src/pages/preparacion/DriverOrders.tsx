@@ -4,21 +4,19 @@ import {
   Container,
   Typography,
   Stack,
-  // Box,
   Button,
-  // Chip,
   Paper,
   Divider,
   TextField,
   MenuItem,
   Card,
   CardContent,
+  LinearProgress,
+  Box,
   useTheme,
   useMediaQuery,
 } from "@mui/material";
 import MapIcon from "@mui/icons-material/Map";
-// import LocalShippingIcon from "@mui/icons-material/LocalShipping";
-// import PaidIcon from "@mui/icons-material/Paid";
 import api from "../../api/api";
 
 /* ============================================================
@@ -39,10 +37,6 @@ interface Order {
   delivery_date: string;
 }
 
-/* ============================================================
-   MUNICIPIOS EN ORDEN PREDEFINIDO
-============================================================ */
-
 const MUNICIPALITY_ORDER = ["Centro", "Norte", "Sur", "Este", "Oeste"];
 
 /* ============================================================
@@ -58,20 +52,28 @@ export default function DriverOrders() {
   const [filterZone, setFilterZone] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] = useState("");
 
-  const [cashTotal, setCashTotal] = useState(0);
-  const [transferTotal, setTransferTotal] = useState(0);
-
   /* ============================================================
-     FETCH - ASSIGNED + IN_DELIVERY
+     FETCH - SOLO PEDIDOS DE HOY
   ============================================================ */
 
   const fetchOrders = async () => {
     try {
       const res = await api.get("/orders?last_2_weeks=true");
 
-      const filtered = res.data.filter(
-        (o: Order) => o.status === "ASSIGNED" || o.status === "IN_DELIVERY",
-      );
+      const today = new Date().toISOString().split("T")[0];
+
+      const filtered = res.data.filter((o: Order) => {
+        const deliveryDay = new Date(o.delivery_date)
+          .toISOString()
+          .split("T")[0];
+
+        return (
+          deliveryDay === today &&
+          (o.status === "ASSIGNED" ||
+            o.status === "IN_DELIVERY" ||
+            o.status === "DELIVERED")
+        );
+      });
 
       setOrders(filtered);
     } catch (err) {
@@ -81,23 +83,26 @@ export default function DriverOrders() {
 
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   /* ============================================================
-     MUNICIPIOS CON PEDIDOS
+     FILTROS
   ============================================================ */
 
   const municipalitiesWithOrders = useMemo(() => {
     const unique = Array.from(
       new Set(orders.map((o) => o.client.municipality)),
     );
-
     return MUNICIPALITY_ORDER.filter((m) => unique.includes(m));
   }, [orders]);
-
-  /* ============================================================
-     FILTROS
-  ============================================================ */
 
   const filteredOrders = useMemo(() => {
     let filtered = orders;
@@ -116,6 +121,61 @@ export default function DriverOrders() {
   }, [orders, filterZone, selectedMunicipality]);
 
   /* ============================================================
+     SEPARACIÓN PENDIENTES / ENTREGADOS
+  ============================================================ */
+
+  const pendingOrders = filteredOrders.filter(
+    (o) => o.status === "ASSIGNED" || o.status === "IN_DELIVERY",
+  );
+
+  const deliveredOrders = filteredOrders.filter(
+    (o) => o.status === "DELIVERED",
+  );
+
+  /* ============================================================
+     KPI PROFESIONALES
+  ============================================================ */
+
+  const { estimatedTotal, deliveredTotal, cashTotal, transferTotal, progress } =
+    useMemo(() => {
+      let estimated = 0;
+      let delivered = 0;
+      let cash = 0;
+      let transfer = 0;
+
+      filteredOrders.forEach((order) => {
+        const amount = Number(order.total_amount);
+
+        estimated += amount;
+
+        if (order.status === "DELIVERED") {
+          delivered += amount;
+
+          if (order.payment_method === "CASH") {
+            cash += amount;
+          } else if (order.payment_method === "TRANSFER") {
+            transfer += amount;
+          } else {
+            cash += amount / 2;
+            transfer += amount / 2;
+          }
+        }
+      });
+
+      const percent =
+        filteredOrders.length === 0
+          ? 0
+          : (deliveredOrders.length / filteredOrders.length) * 100;
+
+      return {
+        estimatedTotal: estimated,
+        deliveredTotal: delivered,
+        cashTotal: cash,
+        transferTotal: transfer,
+        progress: percent,
+      };
+    }, [filteredOrders, deliveredOrders]);
+  /* ============================================================
      STATUS HANDLER
   ============================================================ */
 
@@ -123,17 +183,6 @@ export default function DriverOrders() {
     await api.patch(`/orders/${order.id}/status`, {
       new_status: newStatus,
     });
-
-    if (newStatus === "DELIVERED") {
-      if (order.payment_method === "CASH") {
-        setCashTotal((prev) => prev + order.total_amount);
-      } else if (order.payment_method === "TRANSFER") {
-        setTransferTotal((prev) => prev + order.total_amount);
-      } else {
-        setCashTotal((prev) => prev + order.total_amount / 2);
-        setTransferTotal((prev) => prev + order.total_amount / 2);
-      }
-    }
 
     fetchOrders();
   };
@@ -145,34 +194,48 @@ export default function DriverOrders() {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" fontWeight="bold" mb={3}>
-        🚚 Reparto
+        🚚 Reparto del día
       </Typography>
 
-      {/* RESUMEN SUPERIOR */}
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-        <Stack
-          direction={isMobile ? "column" : "row"}
-          spacing={3}
-          justifyContent="space-between"
-        >
-          <Typography>Pedidos asignados: {orders.length}</Typography>
-
-          <Typography color="success.main">
-            Efectivo: ${cashTotal.toFixed(2)}
-          </Typography>
-
-          <Typography color="info.main">
-            Transferencia: ${transferTotal.toFixed(2)}
-          </Typography>
-
+      {/* KPI SUPERIOR */}
+      <Paper sx={{ p: 3, mb: 4, borderRadius: 3 }}>
+        <Stack spacing={2}>
           <Typography fontWeight="bold">
-            Total: ${(cashTotal + transferTotal).toFixed(2)}
+            Progreso de ruta: {progress.toFixed(0)}%
           </Typography>
+
+          <LinearProgress
+            variant="determinate"
+            value={progress}
+            sx={{ height: 10, borderRadius: 5 }}
+          />
+
+          <Stack
+            direction={isMobile ? "column" : "row"}
+            spacing={3}
+            justifyContent="space-between"
+          >
+            <Typography>
+              Total estimado: ${estimatedTotal.toFixed(2)}
+            </Typography>
+
+            <Typography color="success.main">
+              Total entregado: ${deliveredTotal.toFixed(2)}
+            </Typography>
+
+            <Typography color="success.main">
+              Efectivo: ${cashTotal.toFixed(2)}
+            </Typography>
+
+            <Typography color="info.main">
+              Transferencia: ${transferTotal.toFixed(2)}
+            </Typography>
+          </Stack>
         </Stack>
       </Paper>
 
       {/* FILTROS */}
-      <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={3}>
+      <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={4}>
         <TextField
           select
           label="Zona"
@@ -201,21 +264,21 @@ export default function DriverOrders() {
         </TextField>
       </Stack>
 
-      {/* LISTA DE PEDIDOS */}
-      <Stack spacing={2}>
-        {filteredOrders.map((order) => (
+      {/* PENDIENTES */}
+      <Typography variant="h6" mb={2}>
+        📦 Pendientes ({pendingOrders.length})
+      </Typography>
+
+      <Stack spacing={2} mb={4}>
+        {pendingOrders.map((order) => (
           <Card key={order.id} sx={{ borderRadius: 3 }}>
             <CardContent>
               <Stack spacing={1}>
                 <Typography fontWeight="bold">Pedido #{order.id}</Typography>
 
                 <Typography>Cliente: {order.client.name}</Typography>
-
                 <Typography>Tel: {order.client.phone}</Typography>
-
                 <Typography>Monto: ${order.total_amount}</Typography>
-
-                <Typography>Método: {order.payment_method}</Typography>
 
                 <Stack direction="row" spacing={1}>
                   {order.status === "ASSIGNED" && (
@@ -239,6 +302,27 @@ export default function DriverOrders() {
                   )}
                 </Stack>
               </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
+
+      {/* ENTREGADOS */}
+      <Typography variant="h6" mb={2}>
+        ✅ Entregados ({deliveredOrders.length})
+      </Typography>
+
+      <Stack spacing={2}>
+        {deliveredOrders.map((order) => (
+          <Card
+            key={order.id}
+            sx={{ borderRadius: 3, backgroundColor: "#f5f5f5" }}
+          >
+            <CardContent>
+              <Typography fontWeight="bold">Pedido #{order.id}</Typography>
+              <Typography>Cliente: {order.client.name}</Typography>
+              <Typography>Monto: ${order.total_amount}</Typography>
+              <Typography color="success.main">✔ Entregado</Typography>
             </CardContent>
           </Card>
         ))}

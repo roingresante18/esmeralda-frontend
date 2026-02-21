@@ -80,6 +80,14 @@ export default function ControlOrders() {
 
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   /* ============================================================

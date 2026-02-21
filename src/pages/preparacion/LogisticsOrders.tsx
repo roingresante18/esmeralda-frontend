@@ -68,6 +68,14 @@ export default function LogisticsOrders() {
 
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   /* ============================================================
@@ -252,14 +260,14 @@ export default function LogisticsOrders() {
 
       <Divider sx={{ mt: 4 }} />
 
-      <Typography
+      {/*<Typography
         variant="caption"
         display="block"
         textAlign="center"
         sx={{ mt: 2 }}
       >
         Los pedidos aparecen automáticamente 12 horas antes de su entrega.
-      </Typography>
+      </Typography>*/}
     </Container>
   );
 }
