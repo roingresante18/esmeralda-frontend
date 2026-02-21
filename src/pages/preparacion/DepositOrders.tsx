@@ -21,6 +21,12 @@ import {
   useTheme,
   Container,
 } from "@mui/material";
+import {
+  formatDateAR,
+  isToday,
+  isOnOrAfter,
+  isOnOrBefore,
+} from "../../utils/dateUtils";
 import api from "../../api/api";
 import OrderDepositPDF from "./OrderDepositPDF";
 import { PDFViewer, pdf, Document, Page } from "@react-pdf/renderer";
@@ -158,13 +164,15 @@ export default function DepositOrders() {
     }
 
     if (filterDateFrom) {
-      const fromDate = new Date(filterDateFrom);
-      filtered = filtered.filter((o) => new Date(o.delivery_date) >= fromDate);
+      filtered = filtered.filter((o) =>
+        isOnOrAfter(o.delivery_date, filterDateFrom),
+      );
     }
 
     if (filterDateTo) {
-      const toDate = new Date(filterDateTo);
-      filtered = filtered.filter((o) => new Date(o.delivery_date) <= toDate);
+      filtered = filtered.filter((o) =>
+        isOnOrBefore(o.delivery_date, filterDateTo),
+      );
     }
 
     setFilteredOrders(filtered);
@@ -275,10 +283,17 @@ export default function DepositOrders() {
         field: "delivery_date",
         headerName: "Fecha entrega",
         flex: 1,
-        valueGetter: (_value, row) =>
-          row.delivery_date
-            ? new Date(row.delivery_date).toLocaleDateString("es-AR")
-            : "",
+        renderCell: (params) => {
+          const today = isToday(params.row.delivery_date);
+
+          return (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography>{formatDateAR(params.row.delivery_date)}</Typography>
+
+              {today && <Chip label="HOY" color="error" size="small" />}
+            </Stack>
+          );
+        },
       },
 
       {
