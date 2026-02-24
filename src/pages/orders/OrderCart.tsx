@@ -49,7 +49,6 @@ export default function OrderCart({
 
     return Math.max(discounted, 0);
   };
-
   /* ======================= 📱 MOBILE ======================= */
   if (isMobile) {
     return (

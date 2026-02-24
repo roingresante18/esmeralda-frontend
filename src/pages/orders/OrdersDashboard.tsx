@@ -24,6 +24,7 @@ import {
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import PersonIcon from "@mui/icons-material/Person";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import { formatDateOnlyAR, formatDateTimeAR } from "../../utils/date";
 
 // =====================
 // Tipos
@@ -44,6 +45,7 @@ type OrderItem = {
 type Client = {
   id: number;
   name: string;
+  phone: string;
 };
 
 type Order = {
@@ -53,6 +55,8 @@ type Order = {
   created_at: string;
   client: Client;
   items: OrderItem[];
+  delivery_date: string;
+  municipality_snapshot: string;
 };
 
 // =====================
@@ -137,7 +141,7 @@ export default function OrdersDashboard() {
         ? o.client?.name?.toLowerCase().includes(clientFilter.toLowerCase())
         : true;
 
-      const byDate = dateFilter ? o.created_at.startsWith(dateFilter) : true;
+      const byDate = dateFilter ? o.delivery_date.startsWith(dateFilter) : true;
 
       return byStatus && byClient && byDate;
     });
@@ -250,7 +254,7 @@ export default function OrdersDashboard() {
           />
 
           <TextField
-            label="Fecha"
+            label="Fecha Reparto"
             type="date"
             fullWidth
             InputLabelProps={{ shrink: true }}
@@ -293,8 +297,13 @@ export default function OrdersDashboard() {
                     <PersonIcon fontSize="small" />
                     <Typography variant="body2">
                       {order.client?.name || "Sin cliente"}
+                      {" / "}
+                      {order.client?.phone || "Sin celular"}
                     </Typography>
                   </Stack>
+                  <Typography variant="body2">
+                    {order.municipality_snapshot || "sin Municipalidad"}
+                  </Typography>
                 </Stack>
 
                 {canChangeStatus ? (
@@ -362,7 +371,9 @@ export default function OrdersDashboard() {
                 <Stack direction="row" spacing={1} alignItems="center">
                   <CalendarTodayIcon fontSize="small" />
                   <Typography variant="body2">
-                    {new Date(order.created_at).toLocaleString()}
+                    Creación: {formatDateTimeAR(order.created_at)} hs
+                    <br></br>
+                    Reparto: {formatDateOnlyAR(order.delivery_date)}
                   </Typography>
                 </Stack>
               </Stack>

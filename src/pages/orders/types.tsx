@@ -26,8 +26,8 @@ export interface OrderDraft {
   status: OrderStatus;
   createdAt: string;
   deliveryDate: string | null;
-  municipality?: string;
-  observations?: string; // ⭐ NUEVO
+  municipality_snapshot: string;
+  notes?: string; // ⭐ NUEVO
 }
 
 // =====================
@@ -67,9 +67,7 @@ export type PaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "AMBOS";
 
 export interface Address {
   delivery_address: string;
-  municipality_id: number | "";
   delivery_date: string;
-  payment_method: PaymentMethod | "";
   latitude?: number;
   longitude?: number;
 }

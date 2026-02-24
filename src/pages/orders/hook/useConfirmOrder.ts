@@ -1,66 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import type { Address } from "../types";
+import type { OrderDraft } from "../types";
 
-export type PaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "AMBOS";
-
-export function useConfirmOrder(orderId?: number, onConfirmed?: () => void) {
+export function useConfirmOrder(
+  orderId?: number,
+  onConfirmed?: () => void,
+  order?: OrderDraft, // agregado para acceder al cliente
+) {
   const [open, setOpen] = useState(false);
 
   const [address, setAddress] = useState<Address>({
     delivery_address: "",
-    municipality_id: "", // ⭐ IMPORTANTE
-
-    // 📍 GPS opcional
-    latitude: undefined as number | undefined,
-    longitude: undefined as number | undefined,
-
-    // 🔥 Nuevos campos
-    delivery_date: "", // YYYY-MM-DD
-    payment_method: "",
+    latitude: undefined,
+    longitude: undefined,
+    delivery_date: "",
   });
 
-  const confirmOrder = async () => {
+  // Si cambia el pedido y tiene municipio, actualizamos automáticamente
+
+  const confirmOrder = async (payment?: {
+    cash: number;
+    transfer: number;
+    reference?: string;
+  }) => {
     if (!orderId) return;
 
-    const {
-      delivery_address,
-      municipality_id,
-      latitude,
-      longitude,
-      delivery_date,
-      payment_method,
-    } = address;
+    const { delivery_address, latitude, longitude, delivery_date } = address;
 
     console.log("Confirm payload:", address);
+    console.log("Payment payload:", payment);
 
-    // ✅ Validaciones obligatorias
-    if (!delivery_address.trim()) {
-      alert("Ingresá la dirección de entrega");
-      return;
-    }
-
-    if (!municipality_id) {
-      alert("Seleccioná un municipio");
-      return;
-    }
-
+    // 🔹 Validaciones
     if (!delivery_date) {
       alert("Seleccioná la fecha de entrega");
       return;
     }
 
-    if (!payment_method) {
-      alert("Seleccioná el método de pago");
-      return;
-    }
-
-    // 📦 Payload limpio (GPS solo si existe)
     const payload: any = {
-      delivery_address,
-      municipality_id,
+      delivery_address: delivery_address?.trim() || null, // opcional
       delivery_date,
-      payment_method,
     };
 
     if (latitude != null && longitude != null) {
@@ -68,10 +47,34 @@ export function useConfirmOrder(orderId?: number, onConfirmed?: () => void) {
       payload.longitude = longitude;
     }
 
-    await api.patch(`/orders/${orderId}/confirm`, payload);
+    try {
+      // 1️⃣ Confirmar orden
+      await api.patch(`/orders/${orderId}/confirm`, payload);
 
-    onConfirmed?.();
-    setOpen(false);
+      // 2️⃣ Registrar pagos si existen
+      if (payment) {
+        if (payment.cash > 0) {
+          await api.patch(`/orders/${orderId}/payment`, {
+            amount: payment.cash,
+            method: "CASH",
+          });
+        }
+
+        if (payment.transfer > 0) {
+          await api.patch(`/orders/${orderId}/payment`, {
+            amount: payment.transfer,
+            method: "TRANSFER",
+            reference: payment.reference || null,
+          });
+        }
+      }
+
+      onConfirmed?.();
+      setOpen(false);
+    } catch (err) {
+      console.error("ERROR CONFIRM ORDER", err);
+      alert("Error al confirmar el pedido");
+    }
   };
 
   return {

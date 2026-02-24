@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Stack,
   Paper,
@@ -18,21 +18,25 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PersonIcon from "@mui/icons-material/Person";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ReceiptIcon from "@mui/icons-material/Receipt";
-import ConfirmOrderDialog from "./ConfirmOrderDialog";
-import type { UserRole } from "./types";
-import type { ClientFormData } from "../../pages/modules/Clients/components/ClientForm.types";
-import api from "../../api/api";
 import { useNavigate } from "react-router-dom";
+import * as htmlToImage from "html-to-image";
+import ConfirmOrderDialog from "./ConfirmOrderDialog";
 import OrderProductPicker from "./OrderProductPicker";
 import OrderCart from "./OrderCart";
 import OrderSummary from "./OrderSummary";
 import OrderReceipt from "./OrderReceipt";
 import DraftOrderSearch from "./DraftOrderSearch";
 import ClientForm from "../../pages/modules/Clients/components/ClientForm";
-import * as htmlToImage from "html-to-image";
+import api from "../../api/api";
 import { useOrder } from "./hook/useOrder";
 import { useConfirmOrder } from "./hook/useConfirmOrder";
+import { useClientSearch, type Client } from "./hook/useClientSearch";
 import logo from "../../../public/logo.png";
+import type { UserRole } from "./types";
+import type {
+  ClientFormData,
+  Municipality,
+} from "../../pages/modules/Clients/components/ClientForm.types";
 
 export default function OrderManager({
   currentUser,
@@ -40,11 +44,9 @@ export default function OrderManager({
   currentUser: { role: UserRole };
 }) {
   /* ================= PERMISOS ================= */
-
   const canEdit = currentUser.role === "ADMIN" || currentUser.role === "VENTAS";
 
   /* ================= ORDER ================= */
-
   const {
     order,
     setOrder,
@@ -57,31 +59,40 @@ export default function OrderManager({
 
   /* ================= CLIENT SEARCH ================= */
 
-  const [clientQuery, setClientQuery] = useState("");
-  const [clientsFound, setClientsFound] = useState<any[]>([]);
+  const {
+    clientQuery,
+    setClientQuery,
+    clientsFound,
+    selectClient,
+    clearResults,
+  } = useClientSearch();
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [confirmStep, setConfirmStep] = useState<"FORM" | "SUMMARY">("FORM");
 
-  const [municipalities, setMunicipalities] = useState<
-    { id: number; name: string }[]
-  >([]);
+  //prueba de capturar municipalidad del cliente
+  interface ClientFormState extends ClientFormData {
+    municipality?: Municipality;
+  }
 
-  const [clientForm, setClientForm] = useState<ClientFormData>({
+  const [clientForm, setClientForm] = useState<ClientFormState>({
     name: "",
     phone: "",
     email: "",
     address: "",
     municipality_id: "",
   });
+  // const [clientForm, setClientForm] = useState<ClientFormData>({
+  //   name: "",
+  //   phone: "",
+  //   email: "",
+  //   address: "",
+  //   municipality_id: "",
+  // });
 
   const navigate = useNavigate();
-
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
-  // const [productsSectionOpen, setProductsSectionOpen] = useState(true);
-  // const [summarySectionOpen, setSummarySectionOpen] = useState(true);
 
   /* ================= CONFIRM ORDER ================= */
-
   const {
     open: confirmOpen,
     setOpen: setConfirmOpen,
@@ -94,9 +105,7 @@ export default function OrderManager({
   });
 
   /* ================= LIMPIAR TODO ================= */
-
   const clearAll = () => {
-    //Pedido;
     setOrder({
       orderId: undefined,
       status: "QUOTATION",
@@ -104,41 +113,33 @@ export default function OrderManager({
       clientName: "",
       clientPhone: "",
       items: [],
-      observations: "",
+      notes: "",
       createdAt: new Date().toISOString(),
       deliveryDate: "",
+      municipality_snapshot: "",
     });
 
-    //Cliente;
     setClientQuery("");
-    setClientsFound([]);
+    clearResults();
     setClientModalOpen(false);
 
-    //  Dirección;
     setAddress({
       delivery_address: "",
-      municipality_id: "",
       latitude: undefined,
       longitude: undefined,
       delivery_date: "",
-      payment_method: "",
     });
 
-    // UI;
     setConfirmStep("FORM");
     setConfirmOpen(false);
     setClientSectionOpen(true);
-    // setProductsSectionOpen(true);
-    // setSummarySectionOpen(true);
   };
 
   const closeConfirmModal = () => {
     setConfirmOpen(false);
     setConfirmStep("FORM");
   };
-
   /* ================= DESCUENTO VISUAL ================= */
-
   const updateDiscount = (productId: number, value: number) => {
     setOrder((prev) => ({
       ...prev,
@@ -150,69 +151,35 @@ export default function OrderManager({
     }));
   };
 
-  /* ================= MUNICIPIOS ================= */
-
-  useEffect(() => {
-    api
-      .get("/logistics/municipalities")
-      .then((res) => setMunicipalities(res.data.municipalities))
-      .catch(() => {});
-  }, []);
-
-  /* ================= BÚSQUEDA CLIENTE ================= */
-
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      if (clientQuery.trim().length < 3) {
-        setClientsFound([]);
-        return;
-      }
-
-      try {
-        const res = await api.get("/clients/search", {
-          params: { q: clientQuery.trim() },
-        });
-        setClientsFound(res.data);
-      } catch {}
-    }, 400);
-
-    return () => clearTimeout(t);
-  }, [clientQuery]);
-
-  const selectClient = (client: any) => {
-    setOrder((p) => ({
-      ...p,
+  /* ================= SELECCIÓN DE CLIENTE ================= */
+  const handleSelectClient = (client: Client) => {
+    applyClientToOrder(client);
+    selectClient(client);
+  };
+  const applyClientToOrder = (client: Client) => {
+    setOrder((prev) => ({
+      ...prev,
       clientId: client.id,
       clientName: client.name,
       clientPhone: client.phone,
+      municipality_snapshot: client.municipality_name || "",
     }));
-    setClientsFound([]);
-    setClientQuery("");
   };
-
   const clearClient = () =>
     setOrder((p) => ({
       ...p,
       clientId: undefined,
       clientName: "",
       clientPhone: "",
+      municipality_snapshot: "",
     }));
 
   const submitClient = async () => {
     const res = await api.post("/clients", clientForm);
-
-    setOrder((p) => ({
-      ...p,
-      clientId: res.data.id,
-      clientName: res.data.name,
-      clientPhone: res.data.phone,
-    }));
-
+    applyClientToOrder(res.data);
     setClientModalOpen(false);
   };
-
   /* ================= RECEIPT EXPORT ================= */
-
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const exportJPG = async () => {
@@ -222,7 +189,6 @@ export default function OrderManager({
       quality: 0.95,
       backgroundColor: "#ffffff",
     });
-
     if (!blob) return;
 
     const url = URL.createObjectURL(blob);
@@ -232,10 +198,8 @@ export default function OrderManager({
     a.click();
 
     const phone = order.clientPhone?.replace(/\D/g, "");
-
     if (phone) {
       const text = `Hola ${order.clientName}, te envío el presupuesto del pedido.`;
-
       window.open(
         `https: wa.me/+54${phone}?text=${encodeURIComponent(text)}`,
         "_blank",
@@ -244,18 +208,18 @@ export default function OrderManager({
   };
 
   /* ================= TOTAL VISUAL ================= */
-
-  const estimatedTotal = order.items.reduce((sum, item) => {
-    const discount = item.discountPercent ?? 0;
-    const finalPrice = item.sale_price * (1 - discount / 100);
-    return sum + finalPrice * item.quantity;
-  }, 0);
+  const estimatedTotal = useMemo(() => {
+    return order.items.reduce((sum, item) => {
+      const discount = item.discountPercent ?? 0;
+      const finalPrice = item.sale_price * (1 - discount / 100);
+      return sum + finalPrice * item.quantity;
+    }, 0);
+  }, [order.items]);
 
   /* ================= UI ================= */
-
   return (
     <Stack spacing={2} sx={{ p: { xs: 2, md: 4 } }}>
-      {/* Volver */}
+      {/* Botón volver */}
       <Button
         sx={{
           position: "fixed",
@@ -275,7 +239,7 @@ export default function OrderManager({
         Administrar Pedido
       </Typography>
 
-      {/* Limpiar */}
+      {/* Botones Limpiar / Ver pedidos */}
       <Stack direction="row" justifyContent="center" mb={2} spacing={2}>
         <Button
           variant="outlined"
@@ -306,10 +270,7 @@ export default function OrderManager({
           boxShadow: 4,
         }}
       >
-        {/* Barra lateral */}
         <Box sx={{ width: 6, bgcolor: "info.main" }} />
-
-        {/* Contenido */}
         <Box sx={{ flex: 1, p: 2 }}>
           <Stack direction="row" justifyContent="space-between">
             <Stack direction="row" spacing={1} alignItems="center">
@@ -318,7 +279,6 @@ export default function OrderManager({
                 Cliente
               </Typography>
             </Stack>
-
             <IconButton onClick={() => setClientSectionOpen((p) => !p)}>
               <ExpandMoreIcon
                 sx={{
@@ -333,7 +293,6 @@ export default function OrderManager({
 
           <Collapse in={clientSectionOpen}>
             <Divider sx={{ my: 1 }} />
-
             {!order.clientId ? (
               <>
                 <TextField
@@ -342,7 +301,6 @@ export default function OrderManager({
                   value={clientQuery}
                   onChange={(e) => setClientQuery(e.target.value)}
                 />
-
                 <Stack spacing={1} mt={1}>
                   {clientsFound.map((c) => (
                     <Paper
@@ -352,10 +310,13 @@ export default function OrderManager({
                         cursor: "pointer",
                         "&:hover": { bgcolor: "#f5f5f5" },
                       }}
-                      onClick={() => selectClient(c)}
+                      onClick={() => handleSelectClient(c)}
                     >
                       <Typography fontWeight="bold">{c.name}</Typography>
                       <Typography variant="body2">{c.phone}</Typography>
+                      <Typography variant="body2">
+                        {c.municipality_name}
+                      </Typography>
                     </Paper>
                   ))}
                 </Stack>
@@ -380,6 +341,9 @@ export default function OrderManager({
                 <Typography variant="body2" mb={1}>
                   {order.clientPhone}
                 </Typography>
+                <Typography variant="body2" mb={1}>
+                  {order.municipality_snapshot || "—"}
+                </Typography>
                 <Button size="small" variant="outlined" onClick={clearClient}>
                   Cambiar cliente
                 </Button>
@@ -398,10 +362,7 @@ export default function OrderManager({
           boxShadow: 4,
         }}
       >
-        {/* Barra lateral */}
         <Box sx={{ width: 6, bgcolor: "warning.main" }} />
-
-        {/* Contenido */}
         <Box sx={{ flex: 1, p: 2 }}>
           <Stack direction="row" alignItems="center" spacing={1} mb={2}>
             <ShoppingCartIcon color="primary" />
@@ -411,7 +372,6 @@ export default function OrderManager({
           </Stack>
 
           <OrderProductPicker onAdd={addProduct} />
-
           <OrderCart
             items={order.items}
             onUpdateQuantity={updateQuantity}
@@ -431,10 +391,7 @@ export default function OrderManager({
           boxShadow: 4,
         }}
       >
-        {/* Barra lateral */}
         <Box sx={{ width: 6, bgcolor: "success.main" }} />
-
-        {/* Contenido */}
         <Box sx={{ flex: 1, p: 2 }}>
           <Stack direction="row" alignItems="center" spacing={1} mb={2}>
             <ReceiptIcon color="success" />
@@ -443,28 +400,20 @@ export default function OrderManager({
             </Typography>
           </Stack>
 
-          {/* 🔵 NUEVO: Observaciones */}
           <TextField
             label="Observaciones"
             placeholder="Agregar detalles adicionales del pedido..."
             multiline
             minRows={3}
             fullWidth
-            value={order.observations || ""}
+            value={order.notes || ""}
             onChange={(e) =>
-              setOrder((prev) => ({
-                ...prev,
-                observations: e.target.value,
-              }))
+              setOrder((prev) => ({ ...prev, notes: e.target.value }))
             }
             disabled={!canEdit}
-            sx={{
-              mt: 3,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 2,
-              },
-            }}
+            sx={{ mt: 3, "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
           />
+
           <OrderSummary
             total={estimatedTotal}
             onSave={saveOrder}
@@ -521,7 +470,6 @@ export default function OrderManager({
         setConfirmStep={setConfirmStep}
         address={address}
         setAddress={setAddress}
-        municipalities={municipalities}
         order={order}
         estimatedTotal={estimatedTotal}
         onConfirm={confirmOrder}

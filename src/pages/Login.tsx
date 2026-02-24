@@ -64,7 +64,7 @@ const Login = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
+        background: "linear-gradient(135deg, #2fcf27 0%, #075e11 100%)",
         px: 2,
       }}
     >
@@ -88,16 +88,6 @@ const Login = () => {
                 mb: 1,
               }}
             />
-
-            <Avatar
-              sx={{
-                bgcolor: "primary.main",
-                width: 56,
-                height: 56,
-              }}
-            >
-              <LockOutlinedIcon />
-            </Avatar>
 
             <Typography variant="h6" fontWeight="bold">
               Sistema Esmeralda
@@ -128,7 +118,7 @@ const Login = () => {
 
                 <Button
                   type="submit"
-                  variant="contained"
+                  variant="text"
                   size="large"
                   fullWidth
                   disabled={loading}
@@ -136,6 +126,7 @@ const Login = () => {
                     py: 1.4,
                     fontWeight: "bold",
                     borderRadius: 3,
+                    color: "green",
                   }}
                 >
                   {loading ? (

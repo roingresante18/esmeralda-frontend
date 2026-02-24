@@ -21,6 +21,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ConfirmOrderMap from "./ConfirmOrderMap";
 import type { Address } from "./types";
 import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState } from "react";
 
 interface Props {
   open: boolean;
@@ -29,10 +30,13 @@ interface Props {
   setConfirmStep: Dispatch<SetStateAction<"FORM" | "SUMMARY">>;
   address: Address;
   setAddress: Dispatch<SetStateAction<Address>>;
-  municipalities: { id: number; name: string }[];
   order: any;
   estimatedTotal: number;
-  onConfirm: () => void;
+  onConfirm: (paymentData: {
+    cash: number;
+    transfer: number;
+    reference?: string;
+  }) => void;
 }
 
 export default function ConfirmOrderDialog({
@@ -42,7 +46,6 @@ export default function ConfirmOrderDialog({
   setConfirmStep,
   address,
   setAddress,
-  municipalities,
   order,
   estimatedTotal,
   onConfirm,
@@ -50,12 +53,41 @@ export default function ConfirmOrderDialog({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
+  const today = new Date().toISOString().split("T")[0];
+
+  /* =======================
+     PAGOS PARCIALES
+  ======================= */
+
+  const [payment, setPayment] = useState({
+    cash: 0,
+    transfer: 0,
+    reference: "",
+  });
+
+  const totalPaid = payment.cash + payment.transfer;
+  const remaining = estimatedTotal - totalPaid;
+  const paymentError = totalPaid > estimatedTotal;
+
+  /* =======================
+     PRECARGAR DATOS CLIENTE
+  ======================= */
+
+  useEffect(() => {
+    if (!open) return;
+
+    setAddress((prev) => ({
+      ...prev,
+      delivery_address: prev.delivery_address || order?.clientAddress || "",
+    }));
+  }, [open]);
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="lg" // ⭐ Más ancho en desktop
+      maxWidth="lg"
       fullScreen={isMobile}
     >
       <DialogTitle fontWeight="bold">
@@ -69,8 +101,8 @@ export default function ConfirmOrderDialog({
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "1fr", // 📱 Mobile: una columna
-                md: "1fr 1.2fr", // 🖥️ Desktop: mapa más grande
+                xs: "1fr",
+                md: "1fr 1.2fr",
               },
               height: {
                 xs: "calc(100vh - 140px)",
@@ -91,7 +123,7 @@ export default function ConfirmOrderDialog({
               <TextField
                 label="Dirección de entrega"
                 fullWidth
-                value={address.delivery_address}
+                value={address.delivery_address || ""}
                 onChange={(e) =>
                   setAddress((prev) => ({
                     ...prev,
@@ -100,32 +132,13 @@ export default function ConfirmOrderDialog({
                 }
               />
 
-              <FormControl fullWidth>
-                <InputLabel>Municipio</InputLabel>
-                <Select
-                  value={address.municipality_id || ""}
-                  label="Municipio"
-                  onChange={(e) =>
-                    setAddress((prev) => ({
-                      ...prev,
-                      municipality_id: Number(e.target.value),
-                    }))
-                  }
-                >
-                  {municipalities.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>
-                      {m.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
               <TextField
                 label="Fecha de entrega"
                 type="date"
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: today }}
                 fullWidth
-                value={address.delivery_date}
+                value={address.delivery_date || ""}
                 onChange={(e) =>
                   setAddress((prev) => ({
                     ...prev,
@@ -134,29 +147,66 @@ export default function ConfirmOrderDialog({
                 }
               />
 
-              <FormControl fullWidth>
-                <InputLabel>Método de pago</InputLabel>
-                <Select
-                  value={address.payment_method || ""}
-                  label="Método de pago"
-                  onChange={(e) =>
-                    setAddress((prev) => ({
-                      ...prev,
-                      payment_method: e.target
-                        .value as Address["payment_method"],
-                    }))
-                  }
-                >
-                  <MenuItem value="EFECTIVO">Efectivo</MenuItem>
-                  <MenuItem value="TRANSFERENCIA">Transferencia</MenuItem>
-                  <MenuItem value="AMBOS">Efectivo + Transferencia</MenuItem>
-                </Select>
-              </FormControl>
+              <Divider sx={{ my: 1 }} />
 
-              <Typography variant="caption" color="text.secondary">
-                📍 Ubicación opcional. Podés marcarla ahora o dejarla para
-                logística.
-              </Typography>
+              <Typography fontWeight="bold">Pago inicial (opcional)</Typography>
+
+              <TextField
+                label="Monto en efectivo"
+                type="number"
+                value={payment.cash}
+                onChange={(e) =>
+                  setPayment((prev) => ({
+                    ...prev,
+                    cash: Number(e.target.value) || 0,
+                  }))
+                }
+                fullWidth
+              />
+
+              <TextField
+                label="Monto en transferencia"
+                type="number"
+                value={payment.transfer}
+                onChange={(e) =>
+                  setPayment((prev) => ({
+                    ...prev,
+                    transfer: Number(e.target.value) || 0,
+                  }))
+                }
+                fullWidth
+              />
+
+              <TextField
+                label="Referencia transferencia (opcional)"
+                value={payment.reference}
+                onChange={(e) =>
+                  setPayment((prev) => ({
+                    ...prev,
+                    reference: e.target.value,
+                  }))
+                }
+                fullWidth
+              />
+
+              <Paper sx={{ p: 2, bgcolor: "#fff" }}>
+                <Typography>
+                  Total pedido: ${estimatedTotal.toFixed(2)}
+                </Typography>
+                <Typography>Pagado ahora: ${totalPaid.toFixed(2)}</Typography>
+                <Typography
+                  color={remaining > 0 ? "warning.main" : "success.main"}
+                  fontWeight="bold"
+                >
+                  Saldo pendiente: ${remaining.toFixed(2)}
+                </Typography>
+
+                {paymentError && (
+                  <Typography color="error">
+                    El pago no puede superar el total del pedido
+                  </Typography>
+                )}
+              </Paper>
             </Stack>
 
             {/* ===== MAPA ===== */}
@@ -192,17 +242,17 @@ export default function ConfirmOrderDialog({
               <Typography>
                 <b>Cliente:</b> {order.clientName}
               </Typography>
-
               <Typography>
                 <b>Dirección:</b> {address.delivery_address}
               </Typography>
-
               <Typography>
                 <b>Fecha:</b> {address.delivery_date}
               </Typography>
-
               <Typography>
-                <b>Pago:</b> {address.payment_method}
+                <b>Pagado:</b> ${totalPaid.toFixed(2)}
+              </Typography>
+              <Typography>
+                <b>Saldo pendiente:</b> ${remaining.toFixed(2)}
               </Typography>
             </Paper>
 
@@ -217,14 +267,14 @@ export default function ConfirmOrderDialog({
                 <Typography>
                   {i.description} x {i.quantity}
                 </Typography>
-                <Typography>${i.quantity}</Typography>
+                <Typography>${(i.price * i.quantity).toFixed(2)}</Typography>
               </Stack>
             ))}
 
             <Divider />
 
             <Typography fontWeight="bold" textAlign="right" fontSize={20}>
-              Total: ${estimatedTotal}
+              Total: ${estimatedTotal.toFixed(2)}
             </Typography>
           </Stack>
         )}
@@ -240,9 +290,8 @@ export default function ConfirmOrderDialog({
             onClick={() => setConfirmStep("SUMMARY")}
             disabled={
               !address.delivery_address ||
-              !address.municipality_id ||
               !address.delivery_date ||
-              !address.payment_method
+              paymentError
             }
           >
             Revisar resumen
@@ -253,7 +302,13 @@ export default function ConfirmOrderDialog({
             color="success"
             size="large"
             startIcon={<CheckCircleIcon />}
-            onClick={onConfirm}
+            onClick={() =>
+              onConfirm({
+                cash: payment.cash,
+                transfer: payment.transfer,
+                reference: payment.reference,
+              })
+            }
           >
             Confirmar pedido
           </Button>

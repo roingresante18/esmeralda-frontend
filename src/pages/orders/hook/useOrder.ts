@@ -3,7 +3,7 @@ import type { OrderDraft, CartItem, OrderStatus } from "../types";
 import api from "../../../api/api";
 
 /* ============================================================
-   Tipo de respuesta de borradores desde backend
+   Tipo API de borradores
 ============================================================ */
 
 export type DraftOrderApi = {
@@ -11,7 +11,8 @@ export type DraftOrderApi = {
   status: OrderStatus;
   created_at: string;
   delivery_date?: string;
-  observations: string;
+  notes: string;
+  municipality_snapshot: string;
 
   client?: {
     id: number;
@@ -23,7 +24,7 @@ export type DraftOrderApi = {
     id: number;
     quantity: number;
     discount_percent: number;
-    unit_price(sale_price: any): number;
+    unit_price: number;
     product?: {
       id: number;
       description?: string;
@@ -32,22 +33,41 @@ export type DraftOrderApi = {
 };
 
 /* ============================================================
-   HOOK PRINCIPAL DE PEDIDOS
+   HOOK PRINCIPAL
 ============================================================ */
 
 export function useOrder(canEdit: boolean) {
   /* ================= ESTADO ================= */
 
   const [order, setOrder] = useState<OrderDraft>({
+    orderId: undefined,
     clientId: undefined,
     clientName: "",
     clientPhone: "",
-    items: [] as CartItem[],
+    items: [],
     status: "QUOTATION",
     createdAt: new Date().toISOString(),
     deliveryDate: "",
-    observations: "", // ⭐ NUEVO
+    notes: "",
+    municipality_snapshot: "",
   });
+
+  /* ============================================================
+     CALCULAR TOTAL (FRONT)
+  ============================================================ */
+
+  const calculateTotal = () => {
+    return order.items.reduce((acc, item) => {
+      const price = Number(item.sale_price) || 0;
+      const qty = Number(item.quantity) || 0;
+      const discount = Number(item.discountPercent ?? 0);
+
+      const subtotal = price * qty;
+      const discounted = subtotal - (subtotal * discount) / 100;
+
+      return acc + discounted;
+    }, 0);
+  };
 
   /* ============================================================
      CART
@@ -59,7 +79,6 @@ export function useOrder(canEdit: boolean) {
     setOrder((p) => {
       const existing = p.items.find((i) => i.productId === product.productId);
 
-      // 🔹 Si ya existe → sumar cantidad
       if (existing) {
         return {
           ...p,
@@ -98,28 +117,21 @@ export function useOrder(canEdit: boolean) {
   };
 
   /* ============================================================
-     CARGAR BORRADOR DESDE BACKEND
+     CARGAR BORRADOR
   ============================================================ */
 
   const loadDraftOrder = (draft: DraftOrderApi) => {
     const items: CartItem[] = draft.items.map((i) => ({
-      id: i.id, // 🔑 ID del order_item
-      productId: i.product!.id,
-
+      id: i.id,
+      productId: i.product?.id ?? 0,
       description: i.product?.description ?? "Producto",
-
       quantity: Number(i.quantity) || 1,
-
-      // 🔥 ESTE ES EL CAMPO QUE FALTABA
       sale_price: Number(i.unit_price) || 0,
-
-      // 🔹 opcional si tu backend lo guarda
       discountPercent: Number(i.discount_percent) || 0,
     }));
 
     setOrder({
       orderId: draft.id,
-
       clientId: draft.client?.id,
       clientName: draft.client?.name ?? "",
       clientPhone: draft.client?.phone ?? "",
@@ -127,45 +139,87 @@ export function useOrder(canEdit: boolean) {
       status: draft.status,
       createdAt: draft.created_at,
       deliveryDate: draft.delivery_date ?? "",
-      observations: draft.observations ?? "",
+      notes: draft.notes ?? "",
+      municipality_snapshot: draft.municipality_snapshot ?? "",
     });
   };
 
   /* ============================================================
-     GUARDAR PEDIDO
-     🔒 Backend recalcula precios → no enviamos precios
+     GUARDAR ORDEN
   ============================================================ */
 
-  const saveOrder = async () => {
+  const saveOrder = async (payment?: {
+    cash: number;
+    transfer: number;
+    reference?: string;
+  }) => {
     if (!canEdit) return;
 
     if (!order.clientId) throw new Error("CLIENT_REQUIRED");
     if (order.items.length === 0) throw new Error("ITEMS_REQUIRED");
 
-    const payload = {
-      clientId: order.clientId,
-      observations: order.observations, // ⭐ NUEVO
-      items: order.items.map((i) => ({
-        productId: i.productId,
-        quantity: i.quantity,
-        discountPercent: Number(i.discountPercent ?? 0),
-      })),
-    };
-
     try {
-      if (order.orderId) {
-        await api.put(`/orders/${order.orderId}`, payload);
+      let orderId = order.orderId;
 
-        alert("✅ Pedido actualizado con éxito");
-      } else {
+      /* ==========================
+       CREATE
+    ========================== */
+      if (!orderId) {
+        const payload = {
+          clientId: order.clientId,
+          notes: order.notes || "",
+          items: order.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            discountPercent: Number(i.discountPercent ?? 0),
+          })),
+        };
+
         const res = await api.post("/orders", payload);
+        orderId = res.data.id;
 
         setOrder((p) => ({
           ...p,
-          orderId: res.data.id,
+          orderId,
         }));
 
         alert("✅ Pedido creado con éxito");
+      } else {
+        /* ==========================
+       UPDATE
+    ========================== */
+        const payload = {
+          notes: order.notes || undefined,
+          items: order.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            discountPercent: Number(i.discountPercent ?? 0),
+          })),
+        };
+
+        await api.put(`/orders/${orderId}`, payload);
+
+        alert("✅ Pedido actualizado con éxito");
+      }
+
+      /* ==========================
+       PAGOS
+    ========================== */
+      if (payment && orderId) {
+        if (payment.cash > 0) {
+          await api.patch(`/orders/${orderId}/payment`, {
+            amount: payment.cash,
+            method: "CASH",
+          });
+        }
+
+        if (payment.transfer > 0) {
+          await api.patch(`/orders/${orderId}/payment`, {
+            amount: payment.transfer,
+            method: "TRANSFER",
+            reference: payment.reference || null,
+          });
+        }
       }
     } catch (e) {
       console.error("ERROR SAVE ORDER", e);
@@ -185,5 +239,6 @@ export function useOrder(canEdit: boolean) {
     removeProduct,
     loadDraftOrder,
     saveOrder,
+    calculateTotal,
   };
 }

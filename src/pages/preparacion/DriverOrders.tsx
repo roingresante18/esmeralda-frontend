@@ -27,6 +27,7 @@ import MapIcon from "@mui/icons-material/Map";
 import api from "../../api/api";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
+import { formatDateOnlyAR } from "../../utils/date";
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
 L.Icon.Default.mergeOptions({
@@ -86,9 +87,7 @@ export default function DriverOrders() {
       const today = new Date().toISOString().split("T")[0];
 
       const filtered = res.data.filter((o: Order) => {
-        const deliveryDay = new Date(o.delivery_date)
-          .toISOString()
-          .split("T")[0];
+        const deliveryDay = formatDateOnlyAR(o.delivery_date).split("T")[0];
 
         return (
           deliveryDay === today &&

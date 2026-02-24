@@ -18,6 +18,7 @@ import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import TodayIcon from "@mui/icons-material/Today";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import api from "../../api/api";
+import { formatDateOnlyAR } from "../../utils/date";
 
 /* ============================================================
    TYPES
@@ -133,10 +134,10 @@ export default function LogisticsOrders() {
 
       {
         field: "delivery_date",
-        headerName: "Entrega",
+        headerName: "Fecha entrega",
         flex: 1,
         valueGetter: (_v, row) =>
-          new Date(row.delivery_date).toLocaleDateString(),
+          row.delivery_date ? formatDateOnlyAR(row.delivery_date) : "",
       },
 
       {

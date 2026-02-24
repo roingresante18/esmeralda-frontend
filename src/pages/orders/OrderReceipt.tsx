@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { Stack, Typography, Divider, Box } from "@mui/material";
 import type { OrderDraft } from "./types";
-import { FaPhone, FaClock } from "react-icons/fa";
+import { FaPhone, FaClock, FaMapMarkerAlt } from "react-icons/fa";
 
 type Props = {
   order: OrderDraft;
@@ -25,55 +25,82 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
           fontFamily: "Roboto, sans-serif",
         }}
       >
-        {/* LOGO */}
+        {/* LOGO + DATOS CLIENTE */}
         {logoUrl && (
-          <Box display="flex" justifyContent="center">
-            <img
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            gap={2}
+            sx={{
+              borderBottom: "1px solid #e0e0e0",
+              pb: 1,
+            }}
+          >
+            <Box
+              component="img"
               src={logoUrl}
               alt="Logo"
-              style={{ maxHeight: 60, objectFit: "contain" }}
+              sx={{
+                height: 60,
+                width: 60,
+                objectFit: "contain",
+                borderRadius: 2,
+              }}
             />
+
+            <Stack spacing={0.3}>
+              <Typography fontWeight={700} fontSize={18} lineHeight={1.2}>
+                {order.clientName || "—"}
+              </Typography>
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.6,
+                }}
+              >
+                <FaPhone /> {order.clientPhone || "—"}
+              </Typography>
+
+              {/* ✅ MUNICIPIO DESDE SNAPSHOT */}
+              {order.municipality_snapshot && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.6,
+                  }}
+                >
+                  <FaMapMarkerAlt />
+                  {order.municipality_snapshot}
+                </Typography>
+              )}
+            </Stack>
           </Box>
         )}
+
+        <Divider />
 
         {/* HEADER */}
         <Stack spacing={0.5} alignItems="center">
           <Typography fontWeight="bold" fontSize={20}>
-            Pedido
+            Cotización Proforma
           </Typography>
 
           {orderDate && (
             <Typography
               variant="caption"
               color="text.secondary"
-              sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+              sx={{ display: "flex", alignItems: "center", gap: 0.6 }}
             >
               <FaClock /> {orderDate}
             </Typography>
-          )}
-        </Stack>
-
-        <Divider />
-
-        {/* CLIENTE */}
-        <Stack spacing={0.5}>
-          <Typography fontWeight={600}>{order.clientName || "—"}</Typography>
-
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-          >
-            <FaPhone /> {order.clientPhone || "—"}
-          </Typography>
-          {order.observations && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="text.secondary">
-                Observaciones
-              </Typography>
-              <Typography variant="body2">{order.observations}</Typography>
-            </>
           )}
         </Stack>
 
@@ -92,25 +119,22 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
 
             return (
               <Box key={item.id ?? `${item.productId}-${index}`}>
-                {/* NOMBRE */}
                 <Typography fontWeight={600}>{item.description}</Typography>
 
-                {/* DETALLE */}
                 <Stack
                   direction="row"
                   justifyContent="space-between"
                   alignItems="center"
                 >
                   <Typography variant="body2" color="text.secondary">
-                    {item.quantity} × ${unitPrice.toLocaleString("en-ES")}
+                    {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
                   </Typography>
 
                   <Typography fontWeight={600}>
-                    ${total.toLocaleString("en-ES")}
+                    ${total.toLocaleString("es-AR")}
                   </Typography>
                 </Stack>
 
-                {/* DESCUENTO */}
                 {discount > 0 && (
                   <Typography
                     variant="caption"
@@ -125,15 +149,26 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
           })}
         </Stack>
 
+        {/* OBSERVACIONES */}
+        {order.notes && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" color="text.secondary">
+              Observaciones
+            </Typography>
+            <Typography variant="body2">{order.notes}</Typography>
+          </>
+        )}
+
         <Divider sx={{ mt: 1 }} />
 
-        {/* TOTAL GRANDE */}
+        {/* TOTAL */}
         <Stack spacing={0.5} alignItems="center">
           <Typography color="text.secondary">Total a pagar</Typography>
 
           <Typography fontSize={32} fontWeight="bold" sx={{ color: "#06a22a" }}>
             $
-            {totalAmount.toLocaleString("en-ES", {
+            {totalAmount.toLocaleString("es-AR", {
               minimumFractionDigits: 0,
               maximumFractionDigits: 0,
             })}
@@ -149,22 +184,6 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
         >
           Gracias por su compra
         </Typography>
-        {/* <Typography
-          variant="caption"
-          align="center"
-          color="text.secondary"
-          sx={{ mt: 1 }}
-        >
-          Software Desarrollado por Zarate Rodrigo Mateo
-        </Typography>
-        <Typography
-          variant="caption"
-          align="center"
-          color="text.secondary"
-          sx={{ mt: 0 }}
-        >
-          Cel: 3764-963653 /email: rodrimateo18@gmail.com
-        </Typography> */}
       </Stack>
     );
   },

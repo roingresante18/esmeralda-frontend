@@ -18,6 +18,7 @@ import {
   Divider,
 } from "@mui/material";
 import api from "../../api/api";
+import { formatDateOnlyAR } from "../../utils/date";
 
 /* ============================================================
    TYPES
@@ -40,6 +41,7 @@ interface Order {
   };
   items: OrderItem[];
   created_at: string;
+  delivery_date: string;
   observations?: string;
 }
 
@@ -132,10 +134,11 @@ export default function ControlOrders() {
       },
 
       {
-        field: "created_at",
-        headerName: "Fecha",
+        field: "delivery_date",
+        headerName: "Fecha entrega",
         flex: 1,
-        valueGetter: (_v, row) => new Date(row.created_at).toLocaleString(),
+        valueGetter: (_v, row) =>
+          row.delivery_date ? formatDateOnlyAR(row.delivery_date) : "",
       },
 
       {
