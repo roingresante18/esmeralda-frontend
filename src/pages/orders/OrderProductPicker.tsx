@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Autocomplete, TextField, Button, Stack, Box } from "@mui/material";
 import api from "../../api/api";
-import type { CartItem } from "./types";
+import type { CartItem } from "../types/types";
 
 interface Props {
   onAdd: (product: CartItem) => void;

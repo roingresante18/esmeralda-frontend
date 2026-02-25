@@ -1,4 +1,4 @@
-import type { OrderStatus } from "../types";
+import type { OrderStatus } from "../../types/types";
 
 export const orderStatusColors: Record<OrderStatus, string> = {
   QUOTATION: "#9e9e9e",

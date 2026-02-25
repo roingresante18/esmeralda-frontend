@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ConfirmOrderMap from "./ConfirmOrderMap";
-import type { Address } from "./types";
+import type { Address } from "../types/types";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 

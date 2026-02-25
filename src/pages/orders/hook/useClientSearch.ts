@@ -7,8 +7,11 @@ export type Client = {
   phone: string;
   email?: string;
   address?: string;
-  municipality_id?: number;
-  municipality_name?: string; // 🔥 NUEVO
+
+  municipality?: {
+    id: number;
+    name: string;
+  };
 };
 
 export function useClientSearch() {

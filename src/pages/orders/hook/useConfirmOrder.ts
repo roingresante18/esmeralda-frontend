@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
-import type { Address } from "../types";
-import type { OrderDraft } from "../types";
+import type { Address } from "../../types/types";
+import type { OrderDraft } from "../../types/types";
 
 export function useConfirmOrder(
   orderId?: number,

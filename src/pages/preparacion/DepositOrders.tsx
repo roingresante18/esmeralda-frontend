@@ -29,7 +29,8 @@ import {
 } from "../../utils/dateUtils";
 import api from "../../api/api";
 import OrderDepositPDF from "./OrderDepositPDF";
-import { PDFViewer, pdf, Document, Page } from "@react-pdf/renderer";
+import { PDFViewer, pdf, Document } from "@react-pdf/renderer";
+import MobileOrdersList from "./MobileOrdersList";
 
 /* ============================================================
    TYPES
@@ -244,9 +245,7 @@ export default function DepositOrders() {
     const doc = (
       <Document>
         {ordersToPrint.map((order) => (
-          <Page key={order.id}>
-            <OrderDepositPDF order={order} />
-          </Page>
+          <OrderDepositPDF key={order.id} order={order} />
         ))}
       </Document>
     );
@@ -465,7 +464,7 @@ export default function DepositOrders() {
             type="date"
             size="small"
             fullWidth
-            label="Desde"
+            label="Inicio reparto"
             value={filterDateFrom}
             onChange={(e) => setFilterDateFrom(e.target.value)}
             InputLabelProps={{ shrink: true }}
@@ -475,7 +474,7 @@ export default function DepositOrders() {
             type="date"
             size="small"
             fullWidth
-            label="Hasta"
+            label="Fin reparto"
             value={filterDateTo}
             onChange={(e) => setFilterDateTo(e.target.value)}
             InputLabelProps={{ shrink: true }}
@@ -494,45 +493,61 @@ export default function DepositOrders() {
             height: { xs: "auto", md: 500 }, // auto en mobile
           }}
         >
-          <DataGrid
-            rows={filteredOrders}
-            columns={columns}
-            getRowId={(r) => r.id}
-            pageSizeOptions={[5, 10, 20]}
-            disableRowSelectionOnClick
-            autoHeight={isMobile} // 🔥 clave para mobile
-            rowHeight={isMobile ? 80 : 52} // 🔥 filas más altas en mobile
-            columnHeaderHeight={isMobile ? 60 : 56}
-            sx={{
-              fontSize: { xs: "0.75rem", md: "0.875rem" },
+          {isMobile ? (
+            <MobileOrdersList
+              orders={filteredOrders}
+              isPrinting={isPrinting}
+              onView={(order) => setSelectedOrder(order)}
+              onPrint={(order) => {
+                setSelectionModel({
+                  type: "include",
+                  ids: new Set([order.id]),
+                });
+                setPdfOpen(true);
+              }}
+              onMarkPrepared={handleMarkPrepared}
+            />
+          ) : (
+            <DataGrid
+              rows={filteredOrders}
+              columns={columns}
+              getRowId={(r) => r.id}
+              pageSizeOptions={[5, 10, 20]}
+              disableRowSelectionOnClick
+              autoHeight={isMobile} // 🔥 clave para mobile
+              rowHeight={isMobile ? 80 : 52} // 🔥 filas más altas en mobile
+              columnHeaderHeight={isMobile ? 60 : 56}
+              sx={{
+                fontSize: { xs: "0.75rem", md: "0.875rem" },
 
-              // 🎨 Colores por estado
-              "& .row-confirmed": { backgroundColor: "#e3f2fd" },
-              "& .row-preparing": { backgroundColor: "#fff3e0" },
-              "& .row-prepared": { backgroundColor: "#e8f5e9" },
+                // 🎨 Colores por estado
+                "& .row-confirmed": { backgroundColor: "#e3f2fd" },
+                "& .row-preparing": { backgroundColor: "#fff3e0" },
+                "& .row-prepared": { backgroundColor: "#e8f5e9" },
 
-              // 🔥 Permitir que el texto haga wrap
-              "& .MuiDataGrid-cell": {
-                whiteSpace: "normal",
-                lineHeight: "1.3rem",
-                py: 1,
-              },
+                // 🔥 Permitir que el texto haga wrap
+                "& .MuiDataGrid-cell": {
+                  whiteSpace: "normal",
+                  lineHeight: "1.3rem",
+                  py: 1,
+                },
 
-              // Header más legible
-              "& .MuiDataGrid-columnHeaders": {
-                fontWeight: "bold",
-              },
+                // Header más legible
+                "& .MuiDataGrid-columnHeaders": {
+                  fontWeight: "bold",
+                },
 
-              // Mejor padding en mobile
-              "& .MuiDataGrid-cellContent": {
-                overflow: "visible",
-                textOverflow: "unset",
-              },
-            }}
-            getRowClassName={(params) =>
-              `row-${params.row.status.toLowerCase()}`
-            }
-          />
+                // Mejor padding en mobile
+                "& .MuiDataGrid-cellContent": {
+                  overflow: "visible",
+                  textOverflow: "unset",
+                },
+              }}
+              getRowClassName={(params) =>
+                `row-${params.row.status.toLowerCase()}`
+              }
+            />
+          )}
         </Box>
 
         {/* MODAL VER PEDIDO - RESPONSIVE */}
@@ -590,9 +605,7 @@ export default function DepositOrders() {
                 {orders
                   .filter((o) => selectionModel.ids.has(o.id))
                   .map((order) => (
-                    <Page key={order.id}>
-                      <OrderDepositPDF order={order} />
-                    </Page>
+                    <OrderDepositPDF key={order.id} order={order} />
                   ))}
               </Document>
             </PDFViewer>

@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import { Stack, Typography, Divider, Box } from "@mui/material";
-import type { OrderDraft } from "./types";
+import type { OrderDraft } from "../types/types";
 import { FaPhone, FaClock, FaMapMarkerAlt } from "react-icons/fa";
 
 type Props = {

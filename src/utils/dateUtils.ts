@@ -26,7 +26,7 @@ export const formatDateAR = (dateString?: string | null): string => {
  * Devuelve true si la fecha es hoy
  */
 export const isToday = (dateString?: string | null): boolean => {
-  const today = new Date().toISOString().split("T")[+3];
+  const today = new Date().toISOString().split("T")[-3];
   return normalizeDate(dateString) === today;
 };
 

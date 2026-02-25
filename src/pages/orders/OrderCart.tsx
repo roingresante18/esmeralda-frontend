@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import DeleteIcon from "@mui/icons-material/Delete";
-import type { CartItem } from "./types";
+import type { CartItem } from "../types/types";
 
 interface Props {
   items: CartItem[];
@@ -96,12 +96,27 @@ export default function OrderCart({
                     type="number"
                     size="small"
                     fullWidth
-                    inputProps={{ min: 0, max: 100 }}
-                    value={item.discountPercent ?? 0}
+                    inputProps={{ min: 0, max: 100, maxLength: 3 }}
+                    value={item.discountPercent ?? ""}
                     disabled={readonly}
-                    onChange={(e) =>
-                      onUpdateDiscount(item.productId, Number(e.target.value))
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      // Permitir vacío
+                      if (value === "") {
+                        onUpdateDiscount(item.productId, 0);
+                        return;
+                      }
+
+                      let num = Number(value);
+
+                      if (isNaN(num)) return;
+
+                      // Limitar entre 0 y 100
+                      num = Math.min(Math.max(num, 0), 100);
+
+                      onUpdateDiscount(item.productId, num);
+                    }}
                   />
                 </Stack>
 
@@ -198,12 +213,27 @@ export default function OrderCart({
                     type="number"
                     size="small"
                     fullWidth
-                    inputProps={{ min: 0, max: 100 }}
-                    value={item.discountPercent ?? 0}
+                    inputProps={{ min: 0, max: 100, maxLength: 3 }}
+                    value={item.discountPercent ?? ""}
                     disabled={readonly}
-                    onChange={(e) =>
-                      onUpdateDiscount(item.productId, Number(e.target.value))
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      // Permitir vacío
+                      if (value === "") {
+                        onUpdateDiscount(item.productId, 0);
+                        return;
+                      }
+
+                      let num = Number(value);
+
+                      if (isNaN(num)) return;
+
+                      // Limitar entre 0 y 100
+                      num = Math.min(Math.max(num, 0), 100);
+
+                      onUpdateDiscount(item.productId, num);
+                    }}
                   />
                 </TableCell>
 

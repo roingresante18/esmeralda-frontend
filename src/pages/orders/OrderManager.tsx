@@ -32,7 +32,7 @@ import { useOrder } from "./hook/useOrder";
 import { useConfirmOrder } from "./hook/useConfirmOrder";
 import { useClientSearch, type Client } from "./hook/useClientSearch";
 import logo from "../../../public/logo.png";
-import type { UserRole } from "./types";
+import type { UserRole } from "../types/types";
 import type {
   ClientFormData,
   Municipality,
@@ -81,13 +81,6 @@ export default function OrderManager({
     address: "",
     municipality_id: "",
   });
-  // const [clientForm, setClientForm] = useState<ClientFormData>({
-  //   name: "",
-  //   phone: "",
-  //   email: "",
-  //   address: "",
-  //   municipality_id: "",
-  // });
 
   const navigate = useNavigate();
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
@@ -153,6 +146,7 @@ export default function OrderManager({
 
   /* ================= SELECCIÓN DE CLIENTE ================= */
   const handleSelectClient = (client: Client) => {
+    console.log(client); // 👈 DEBUG
     applyClientToOrder(client);
     selectClient(client);
   };
@@ -162,7 +156,7 @@ export default function OrderManager({
       clientId: client.id,
       clientName: client.name,
       clientPhone: client.phone,
-      municipality_snapshot: client.municipality_name || "",
+      municipality_snapshot: client.municipality?.name ?? "Sin municipio",
     }));
   };
   const clearClient = () =>
@@ -179,34 +173,47 @@ export default function OrderManager({
     applyClientToOrder(res.data);
     setClientModalOpen(false);
   };
-  /* ================= RECEIPT EXPORT ================= */
-  const receiptRef = useRef<HTMLDivElement>(null);
 
-  const exportJPG = async () => {
+  /* ================= RECEIPT COPY + WHATSAPP ================= */
+  const receiptRef = useRef<HTMLDivElement>(null);
+  const exportToWhatsApp = async () => {
     if (!receiptRef.current) return;
 
+    // 1️⃣ Generar imagen como Blob
     const blob = await htmlToImage.toBlob(receiptRef.current, {
       quality: 0.95,
       backgroundColor: "#ffffff",
     });
+
     if (!blob) return;
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `pedido-${order.orderId || "nuevo"}.jpg`;
-    a.click();
+    // 2️⃣ Copiar al portapapeles como imagen
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+    } catch (err) {
+      alert("Tu navegador no permite copiar imágenes automáticamente");
+      return;
+    }
 
+    // 3️⃣ Abrir WhatsApp Web con mensaje
     const phone = order.clientPhone?.replace(/\D/g, "");
+
     if (phone) {
       const text = `Hola ${order.clientName}, te envío el presupuesto del pedido.`;
+
       window.open(
-        `https: wa.me/+54${phone}?text=${encodeURIComponent(text)}`,
+        `https://wa.me/54${phone}?text=${encodeURIComponent(text)}`,
         "_blank",
       );
     }
-  };
 
+    // 4️⃣ Aviso al usuario
+    alert("Imagen copiada. Pegá en WhatsApp con Ctrl+V");
+  };
   /* ================= TOTAL VISUAL ================= */
   const estimatedTotal = useMemo(() => {
     return order.items.reduce((sum, item) => {
@@ -314,9 +321,9 @@ export default function OrderManager({
                     >
                       <Typography fontWeight="bold">{c.name}</Typography>
                       <Typography variant="body2">{c.phone}</Typography>
-                      <Typography variant="body2">
+                      {/* <Typography variant="body2">
                         {c.municipality_name}
-                      </Typography>
+                      </Typography> */}
                     </Paper>
                   ))}
                 </Stack>
@@ -417,7 +424,7 @@ export default function OrderManager({
           <OrderSummary
             total={estimatedTotal}
             onSave={saveOrder}
-            onExport={exportJPG}
+            onExport={exportToWhatsApp}
             disabled={!canEdit}
           />
           <Button

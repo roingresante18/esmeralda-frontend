@@ -63,7 +63,7 @@ export interface User {
   role: UserRole;
 }
 
-export type PaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "AMBOS";
+// export type PaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "AMBOS";
 
 export interface Address {
   delivery_address: string;
@@ -71,3 +71,28 @@ export interface Address {
   latitude?: number;
   longitude?: number;
 }
+export type DraftOrderApi = {
+  id: number;
+  status: OrderStatus;
+  created_at: string;
+  delivery_date?: string;
+  notes: string;
+  municipality_snapshot: string;
+
+  client?: {
+    id: number;
+    name: string;
+    phone: string;
+  };
+
+  items: {
+    id: number;
+    quantity: number;
+    discount_percent: number;
+    unit_price: number;
+    product?: {
+      id: number;
+      description?: string;
+    };
+  }[];
+};

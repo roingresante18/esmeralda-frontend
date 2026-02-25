@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { OrderDraft, CartItem, OrderStatus } from "../types";
+import type { OrderDraft, CartItem, OrderStatus } from "../../types/types";
 import api from "../../../api/api";
 
 /* ============================================================

@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { FC } from "react";
 
 /* ============================================================
@@ -83,38 +83,36 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
   });
 
   return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        {/* TÍTULO */}
-        <Text style={styles.title}>Pedido #{order.id}</Text>
+    <Page size="A4" style={styles.page}>
+      {/* TÍTULO */}
+      <Text style={styles.title}>Pedido #{order.id}</Text>
 
-        {/* INFO GENERAL */}
-        <View style={styles.section}>
-          <Text>Cliente: {order.client.name}</Text>
+      {/* INFO GENERAL */}
+      <View style={styles.section}>
+        <Text>Cliente: {order.client.name}</Text>
+      </View>
+
+      {/* TABLA PRODUCTOS */}
+      <View style={styles.section}>
+        <View style={styles.headerRow}>
+          <Text>Producto</Text>
+          <Text>Cantidad</Text>
         </View>
 
-        {/* TABLA PRODUCTOS */}
-        <View style={styles.section}>
-          <View style={styles.headerRow}>
-            <Text>Producto</Text>
-            <Text>Cantidad</Text>
+        {order.items.map((item, idx) => (
+          <View key={idx} style={styles.row}>
+            <Text>{item.product.description}</Text>
+            <Text>{item.quantity}</Text>
           </View>
+        ))}
+      </View>
 
-          {order.items.map((item, idx) => (
-            <View key={idx} style={styles.row}>
-              <Text>{item.product.description}</Text>
-              <Text>{item.quantity}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* FOOTER */}
-        <Text style={styles.footer}>
-          Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
-        </Text>
-        <Text style={styles.footer}>Fecha impresión: {formattedDate}</Text>
-      </Page>
-    </Document>
+      {/* FOOTER */}
+      <Text style={styles.footer}>
+        Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
+      </Text>
+      <Text style={styles.footer}>Fecha impresión: {formattedDate}</Text>
+    </Page>
   );
 };
 
