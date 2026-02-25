@@ -2,6 +2,8 @@ import { forwardRef } from "react";
 import { Stack, Typography, Divider, Box } from "@mui/material";
 import type { OrderDraft } from "../types/types";
 import { FaPhone, FaClock, FaMapMarkerAlt } from "react-icons/fa";
+import { formatArgentinaDate } from "../../utils/date";
+import { formatDateAR } from "../../utils/dateUtils";
 
 type Props = {
   order: OrderDraft;
@@ -9,7 +11,11 @@ type Props = {
   logoUrl?: string;
   orderDate?: string;
 };
-
+const addDays = (date: string | Date, days: number) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+};
 const OrderReceipt = forwardRef<HTMLDivElement, Props>(
   ({ order, totalAmount, logoUrl, orderDate }, ref) => {
     return (
@@ -25,68 +31,84 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
           fontFamily: "Roboto, sans-serif",
         }}
       >
-        {/* LOGO + DATOS CLIENTE */}
+        {/* ENCABEZADO COMPACTO PARA WHATSAPP */}
         {logoUrl && (
           <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            gap={2}
             sx={{
               borderBottom: "1px solid #e0e0e0",
-              pb: 1,
+              pb: 2,
+              mb: 2,
             }}
           >
-            <Box
-              component="img"
-              src={logoUrl}
-              alt="Logo"
-              sx={{
-                height: 60,
-                width: 60,
-                objectFit: "contain",
-                borderRadius: 2,
-              }}
-            />
+            {/* Empresa */}
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                component="img"
+                src={logoUrl}
+                alt="Logo"
+                sx={{
+                  height: 100,
+                  width: 100,
+                  objectFit: "contain",
+                }}
+              />
 
-            <Stack spacing={0.3}>
-              <Typography fontWeight={700} fontSize={18} lineHeight={1.2}>
+              <Stack spacing={0.2}>
+                <Typography fontWeight={700} fontSize={12}>
+                  Esmeralda Productos de Limpieza e Higiene
+                </Typography>
+
+                <Typography fontSize={12} color="text.secondary">
+                  Av. Juan Domingo Perón
+                </Typography>
+
+                <Typography fontSize={12} color="text.secondary">
+                  <FaMapMarkerAlt /> 25 de Mayo, Misiones {"  -  "}
+                  <FaPhone /> Tel: 3755-557599
+                </Typography>
+              </Stack>
+            </Stack>
+
+            {/* Separador */}
+            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 1.5 }} />
+
+            {/* Pedido */}
+            <Stack spacing={0.5}>
+              <Typography fontWeight={600}>
+                Pedido Nº {order.orderId ?? "—"}
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary">
+                Fecha: {order.createdAt ? formatDateAR(order.createdAt) : "—"}
+                {"  --  "}
+                Válido hasta:{" "}
+                {order.createdAt
+                  ? formatDateAR(
+                      new Date(
+                        new Date(order.createdAt).getTime() +
+                          14 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                    )
+                  : "—"}
+              </Typography>
+            </Stack>
+
+            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 1.5 }} />
+
+            {/* Cliente */}
+            <Stack spacing={0.4}>
+              <Typography fontWeight={600}>
                 {order.clientName || "—"}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.6,
-                }}
-              >
-                <FaPhone /> {order.clientPhone || "—"}
+              <Typography variant="body2" color="text.secondary">
+                Tel: {order.clientPhone || "—"}
+                {"   -   "}
+                {order.municipality_snapshot}
               </Typography>
-
-              {/* ✅ MUNICIPIO DESDE SNAPSHOT */}
-              {order.municipality_snapshot && (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.6,
-                  }}
-                >
-                  <FaMapMarkerAlt />
-                  {order.municipality_snapshot}
-                </Typography>
-              )}
             </Stack>
           </Box>
         )}
-
-        <Divider />
-
         {/* HEADER */}
         <Stack spacing={0.5} alignItems="center">
           <Typography fontWeight="bold" fontSize={20}>
@@ -106,8 +128,8 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
 
         <Divider />
 
-        {/* PRODUCTOS */}
-        <Stack spacing={1.5}>
+        {/* PRODUCTOS — formato ticket profesional */}
+        <Stack spacing={1.2}>
           {order.items.map((item, index) => {
             const unitPrice = Number(item.sale_price ?? 0);
             const discount = Number(item.discountPercent ?? 0);
@@ -118,30 +140,42 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
             const total = finalUnit * item.quantity;
 
             return (
-              <Box key={item.id ?? `${item.productId}-${index}`}>
-                <Typography fontWeight={600}>{item.description}</Typography>
+              <Box
+                key={item.id ?? `${item.productId}-${index}`}
+                sx={{
+                  pb: 0.8,
+                  borderBottom: "1px dashed #ddd",
+                }}
+              >
+                {/* Línea 1 — Nº + descripción */}
+                <Typography fontWeight={600} fontSize={15} lineHeight={1.2}>
+                  {index + 1}) {item.description}
+                </Typography>
 
+                {/* Línea 2 — Cantidad y total */}
                 <Stack
                   direction="row"
                   justifyContent="space-between"
                   alignItems="center"
+                  mt={0.3}
                 >
                   <Typography variant="body2" color="text.secondary">
                     {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
                   </Typography>
 
-                  <Typography fontWeight={600}>
+                  <Typography fontWeight={700}>
                     ${total.toLocaleString("es-AR")}
                   </Typography>
                 </Stack>
 
+                {/* Descuento */}
                 {discount > 0 && (
                   <Typography
                     variant="caption"
                     color="success.main"
-                    fontWeight={500}
+                    fontWeight={600}
                   >
-                    Descuento {discount}% aplicado
+                    Desc. {discount}%
                   </Typography>
                 )}
               </Box>
@@ -176,14 +210,16 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
         </Stack>
 
         {/* FOOTER */}
-        <Typography
-          variant="caption"
-          align="center"
-          color="text.secondary"
-          sx={{ mt: 1 }}
-        >
-          Gracias por su compra
-        </Typography>
+        <Stack>
+          <Typography
+            fontSize={15}
+            align="center"
+            color="text.secondary"
+            sx={{ mt: 1 }}
+          >
+            Gracias por su compra
+          </Typography>
+        </Stack>
       </Stack>
     );
   },

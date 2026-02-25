@@ -141,12 +141,13 @@ export default function OrdersDashboard() {
         ? o.client?.name?.toLowerCase().includes(clientFilter.toLowerCase())
         : true;
 
-      const byDate = dateFilter ? o.delivery_date.startsWith(dateFilter) : true;
+      const byDate =
+        !dateFilter ||
+        (o.delivery_date && o.delivery_date.startsWith(dateFilter));
 
       return byStatus && byClient && byDate;
     });
   }, [orders, statusFilter, clientFilter, dateFilter]);
-
   // =====================
   // Cambio de estado
   // =====================
