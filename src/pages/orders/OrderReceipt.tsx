@@ -2,7 +2,6 @@ import { forwardRef } from "react";
 import { Stack, Typography, Divider, Box } from "@mui/material";
 import type { OrderDraft } from "../types/types";
 import { FaPhone, FaClock, FaMapMarkerAlt } from "react-icons/fa";
-import { formatArgentinaDate } from "../../utils/date";
 import { formatDateAR } from "../../utils/dateUtils";
 
 type Props = {
@@ -11,11 +10,7 @@ type Props = {
   logoUrl?: string;
   orderDate?: string;
 };
-const addDays = (date: string | Date, days: number) => {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-};
+
 const OrderReceipt = forwardRef<HTMLDivElement, Props>(
   ({ order, totalAmount, logoUrl, orderDate }, ref) => {
     return (
@@ -41,7 +36,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
             }}
           >
             {/* Empresa */}
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={2.5} alignItems="center">
               <Box
                 component="img"
                 src={logoUrl}
@@ -64,13 +59,15 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
 
                 <Typography fontSize={12} color="text.secondary">
                   <FaMapMarkerAlt /> 25 de Mayo, Misiones {"  -  "}
+                </Typography>
+                <Typography fontSize={12} color="text.secondary">
                   <FaPhone /> Tel: 3755-557599
                 </Typography>
               </Stack>
             </Stack>
 
             {/* Separador */}
-            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 1.5 }} />
+            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 0.5 }} />
 
             {/* Pedido */}
             <Stack spacing={0.5}>
@@ -93,7 +90,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
               </Typography>
             </Stack>
 
-            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 1.5 }} />
+            <Box sx={{ borderTop: "1px solid #e0e0e0", my: 0.5 }} />
 
             {/* Cliente */}
             <Stack spacing={0.4}>
@@ -110,7 +107,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
           </Box>
         )}
         {/* HEADER */}
-        <Stack spacing={0.5} alignItems="center">
+        <Stack spacing={0.1} alignItems="center">
           <Typography fontWeight="bold" fontSize={20}>
             Cotización Proforma
           </Typography>
@@ -148,7 +145,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                 }}
               >
                 {/* Línea 1 — Nº + descripción */}
-                <Typography fontWeight={600} fontSize={15} lineHeight={1.2}>
+                <Typography fontWeight={600} fontSize={14} lineHeight={1.2}>
                   {index + 1}) {item.description}
                 </Typography>
 
@@ -163,7 +160,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                     {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
                   </Typography>
 
-                  <Typography fontWeight={700}>
+                  <Typography fontWeight={700} fontSize={15}>
                     ${total.toLocaleString("es-AR")}
                   </Typography>
                 </Stack>
@@ -175,7 +172,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                     color="success.main"
                     fontWeight={600}
                   >
-                    Desc. {discount}%
+                    Descuento {discount}% aplicado
                   </Typography>
                 )}
               </Box>
@@ -184,15 +181,17 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
         </Stack>
 
         {/* OBSERVACIONES */}
-        {order.notes && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <Typography variant="subtitle2" color="text.secondary">
-              Observaciones
-            </Typography>
-            <Typography variant="body2">{order.notes}</Typography>
-          </>
-        )}
+        <Typography
+          variant="body2"
+          sx={{
+            display: "-webkit-box",
+            WebkitLineClamp: 4, // número de líneas visibles
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          Observaciones: {order.notes}
+        </Typography>
 
         <Divider sx={{ mt: 1 }} />
 

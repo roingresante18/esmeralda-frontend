@@ -37,7 +37,7 @@ import type {
   ClientFormData,
   Municipality,
 } from "../../pages/modules/Clients/components/ClientForm.types";
-
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 export default function OrderManager({
   currentUser,
 }: {
@@ -58,7 +58,10 @@ export default function OrderManager({
   } = useOrder(canEdit);
 
   /* ================= CLIENT SEARCH ================= */
-
+  const handleSaveOrder = async () => {
+    await saveOrder();
+    setHasUnsavedChanges(false);
+  };
   const {
     clientQuery,
     setClientQuery,
@@ -84,7 +87,8 @@ export default function OrderManager({
 
   const navigate = useNavigate();
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
-
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   /* ================= CONFIRM ORDER ================= */
   const {
     open: confirmOpen,
@@ -142,6 +146,8 @@ export default function OrderManager({
           : item,
       ),
     }));
+
+    setHasUnsavedChanges(true);
   };
 
   /* ================= SELECCIÓN DE CLIENTE ================= */
@@ -158,6 +164,8 @@ export default function OrderManager({
       clientPhone: client.phone,
       municipality_snapshot: client.municipality?.name ?? "Sin municipio",
     }));
+
+    setHasUnsavedChanges(true);
   };
   const clearClient = () =>
     setOrder((p) => ({
@@ -321,9 +329,6 @@ export default function OrderManager({
                     >
                       <Typography fontWeight="bold">{c.name}</Typography>
                       <Typography variant="body2">{c.phone}</Typography>
-                      {/* <Typography variant="body2">
-                        {c.municipality_name}
-                      </Typography> */}
                     </Paper>
                   ))}
                 </Stack>
@@ -414,26 +419,38 @@ export default function OrderManager({
             minRows={3}
             fullWidth
             value={order.notes || ""}
-            onChange={(e) =>
-              setOrder((prev) => ({ ...prev, notes: e.target.value }))
-            }
+            onChange={(e) => {
+              setOrder((prev) => ({ ...prev, notes: e.target.value }));
+              setHasUnsavedChanges(true);
+            }}
             disabled={!canEdit}
             sx={{ mt: 3, "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
           />
 
           <OrderSummary
             total={estimatedTotal}
-            onSave={saveOrder}
+            onSave={handleSaveOrder}
             onExport={exportToWhatsApp}
             disabled={!canEdit}
           />
+          {hasUnsavedChanges && (
+            <Typography color="warning.main" fontSize={13} mt={1}>
+              ⚠️ Cambios sin guardar
+            </Typography>
+          )}
           <Button
             variant="contained"
             color="success"
             fullWidth
             sx={{ mt: 2, borderRadius: 3 }}
             disabled={!order.orderId || order.status !== "QUOTATION"}
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                setUnsavedDialogOpen(true);
+              } else {
+                setConfirmOpen(true);
+              }
+            }}
           >
             Confirmar pedido
           </Button>
@@ -468,7 +485,42 @@ export default function OrderManager({
           <Button onClick={() => setClientModalOpen(false)}>Cancelar</Button>
         </DialogActions>
       </Dialog>
+      <Dialog
+        open={unsavedDialogOpen}
+        onClose={() => setUnsavedDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          Guardar cambios pendientes
+        </DialogTitle>
 
+        <DialogContent>
+          <Typography>
+            Este pedido tiene cambios sin guardar.
+            <br />
+            Debe guardarlo antes de confirmar para que los cambios impacten
+            correctamente.
+          </Typography>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setUnsavedDialogOpen(false)}>Cancelar</Button>
+
+          <Button
+            variant="contained"
+            onClick={async () => {
+              await saveOrder();
+              setHasUnsavedChanges(false);
+              setUnsavedDialogOpen(false);
+              setConfirmOpen(true);
+            }}
+          >
+            Guardar y confirmar
+          </Button>
+        </DialogActions>
+      </Dialog>
       {/* CONFIRM DIALOG */}
       <ConfirmOrderDialog
         open={confirmOpen}

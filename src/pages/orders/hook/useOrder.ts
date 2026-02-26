@@ -186,9 +186,10 @@ export function useOrder(canEdit: boolean) {
         alert("✅ Pedido creado con éxito");
       } else {
         /* ==========================
-       UPDATE
-    ========================== */
+   UPDATE
+========================== */
         const payload = {
+          clientId: order.clientId, // ⭐ necesario
           notes: order.notes || undefined,
           items: order.items.map((i) => ({
             productId: i.productId,
