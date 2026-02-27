@@ -33,10 +33,8 @@ interface Client extends ClientFormData {
 
 const emptyClient: ClientFormData = {
   name: "",
-  email: "",
-  phone: "",
   address: "",
-  municipality_id: "",
+  municipality_id: null,
 };
 
 /* =======================
@@ -96,8 +94,22 @@ export default function ClientManager() {
 
   const handleCreate = async () => {
     setLoading(true);
+
     try {
-      await api.post("/clients", newClient);
+      const payload: any = {
+        name: newClient.name,
+        address: newClient.address,
+        municipality_id: newClient.municipality_id,
+      };
+
+      // Agregar opcionales solo si tienen valor
+      if (newClient.email) payload.email = newClient.email;
+      if (newClient.phone) payload.phone = newClient.phone;
+      if (newClient.latitude) payload.latitude = newClient.latitude;
+      if (newClient.longitude) payload.longitude = newClient.longitude;
+
+      await api.post("/clients", payload);
+
       setNewClient(emptyClient);
       fetchClients();
       alert("✅ Cliente creado correctamente");

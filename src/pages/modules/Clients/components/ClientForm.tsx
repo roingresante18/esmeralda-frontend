@@ -33,7 +33,6 @@ export default function ClientForm({
   value,
   onChange,
   onSubmit,
-
   loading = false,
 }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -43,29 +42,47 @@ export default function ClientForm({
 
   const readOnly = mode === "logistics";
 
+  /* =======================
+     CARGAR MUNICIPIOS
+  ======================= */
+
   useEffect(() => {
     api.get("/logistics/municipalities").then((res) => {
       setMunicipalities(res.data.municipalities);
     });
   }, []);
+
   /* =======================
      VALIDACIONES
+     Obligatorios:
+     - name
+     - phone
+     - municipality_id
   ======================= */
 
   const validate = () => {
     const errs: Record<string, string> = {};
 
     if (mode !== "logistics") {
-      if (!value.name) errs.name = "Nombre obligatorio";
-      if (!value.address) errs.address = "Dirección obligatoria";
-      if (value.municipality_id === "")
+      if (!value.name?.trim()) {
+        errs.name = "Nombre obligatorio";
+      }
+
+      if (!value.phone?.trim()) {
+        errs.phone = "Teléfono obligatorio";
+      }
+
+      if (!value.municipality_id) {
         errs.municipality_id = "Seleccione municipio";
+      }
+
+      // Email opcional pero validado si existe
+      if (value.email && !/^\S+@\S+\.\S+$/.test(value.email)) {
+        errs.email = "Email inválido";
+      }
     }
 
-    if (value.email && !/^\S+@\S+\.\S+$/.test(value.email)) {
-      errs.email = "Email inválido";
-    }
-
+    // GPS obligatorio solo para logística
     if (mode === "logistics") {
       if (!value.latitude || !value.longitude) {
         errs.gps = "Debe capturar ubicación";
@@ -136,8 +153,10 @@ export default function ClientForm({
           gridTemplateColumns: "repeat(3, 1fr)",
         }}
       >
+        {/* ================= NOMBRE (obligatorio) ================= */}
         <TextField
           label="Nombre"
+          required
           value={value.name}
           disabled={readOnly}
           error={!!errors.name}
@@ -145,6 +164,7 @@ export default function ClientForm({
           onChange={(e) => onChange({ ...value, name: e.target.value })}
         />
 
+        {/* ================= EMAIL (opcional) ================= */}
         <TextField
           label="Email"
           value={value.email || ""}
@@ -154,29 +174,38 @@ export default function ClientForm({
           onChange={(e) => onChange({ ...value, email: e.target.value })}
         />
 
+        {/* ================= TELÉFONO (obligatorio) ================= */}
         <TextField
           label="Teléfono"
+          required
           value={value.phone || ""}
           disabled={readOnly}
+          error={!!errors.phone}
+          helperText={errors.phone}
           onChange={(e) => onChange({ ...value, phone: e.target.value })}
         />
 
+        {/* ================= DIRECCIÓN (opcional) ================= */}
         <TextField
           label="Dirección"
-          value={value.address}
+          value={value.address || ""}
           disabled={readOnly}
-          error={!!errors.address}
-          helperText={errors.address}
           onChange={(e) => onChange({ ...value, address: e.target.value })}
         />
 
+        {/* ================= MUNICIPIO (obligatorio) ================= */}
         <FormControl error={!!errors.municipality_id} disabled={readOnly}>
           <InputLabel>Municipio</InputLabel>
+
           <Select
             label="Municipio"
-            value={value.municipality_id}
+            required
+            value={value.municipality_id ?? ""}
             onChange={(e) =>
-              onChange({ ...value, municipality_id: Number(e.target.value) })
+              onChange({
+                ...value,
+                municipality_id: Number(e.target.value),
+              })
             }
           >
             {municipalities.map((m) => (
@@ -185,9 +214,11 @@ export default function ClientForm({
               </MenuItem>
             ))}
           </Select>
+
           <FormHelperText>{errors.municipality_id}</FormHelperText>
         </FormControl>
 
+        {/* ================= BOTÓN GPS ================= */}
         <Button
           variant="outlined"
           startIcon={
@@ -198,22 +229,26 @@ export default function ClientForm({
           Capturar ubicación
         </Button>
 
+        {/* ================= SUBMIT ================= */}
         <Button variant="contained" onClick={handleSubmit} disabled={loading}>
           {mode === "create" && "Crear cliente"}
           {mode === "edit" && "Guardar cambios"}
           {mode === "logistics" && "Confirmar entrega"}
         </Button>
 
+        {/* Error GPS */}
         {errors.gps && <FormHelperText error>{errors.gps}</FormHelperText>}
       </Box>
 
-      {/* CONFIRMACIÓN GPS */}
+      {/* ================= CONFIRMACIÓN GPS ================= */}
       <Dialog open={confirmGps} onClose={() => setConfirmGps(false)}>
         <DialogTitle>
           ¿Autoriza actualizar la ubicación del cliente con el GPS actual?
         </DialogTitle>
+
         <DialogActions>
           <Button onClick={() => setConfirmGps(false)}>Cancelar</Button>
+
           <Button variant="contained" onClick={confirmGpsUpdate}>
             Confirmar
           </Button>

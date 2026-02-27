@@ -3,7 +3,7 @@ export interface ClientFormData {
   email?: string;
   phone?: string;
   address: string;
-  municipality_id: number | "";
+  municipality_id: number | null;
   latitude?: number;
   longitude?: number;
 }
