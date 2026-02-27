@@ -16,6 +16,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import DeleteIcon from "@mui/icons-material/Delete";
 import type { CartItem } from "../types/types";
+import { order } from "@mui/system";
 
 interface Props {
   items: CartItem[];

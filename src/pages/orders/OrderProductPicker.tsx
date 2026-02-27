@@ -25,6 +25,7 @@ interface Props {
 
 export default function OrderProductPicker({ onAdd }: Props) {
   const isMobile = useMediaQuery("(max-width:900px)");
+  const [inputValue, setInputValue] = useState("");
 
   const [products, setProducts] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
@@ -38,7 +39,21 @@ export default function OrderProductPicker({ onAdd }: Props) {
   // Mobile multi-select
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSelected, setMobileSelected] = useState<any[]>([]);
+  const addProductDirect = (product: any) => {
+    if (!product) return;
 
+    onAdd({
+      productId: product.id,
+      description: product.description,
+      sale_price: Number(product.sale_price) || 0,
+      quantity: 1,
+    });
+
+    setSelected(null);
+
+    // volver foco al buscador
+    setTimeout(() => autoRef.current?.focus(), 50);
+  };
   // Refs teclado desktop
   const qtyRef = useRef<HTMLInputElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -95,7 +110,12 @@ export default function OrderProductPicker({ onAdd }: Props) {
   /* ============================================================
      DESKTOP UI
   ============================================================ */
+  const clearSearch = () => {
+    setSelected(null);
+    setInputValue("");
 
+    setTimeout(() => autoRef.current?.focus(), 50);
+  };
   if (!isMobile) {
     return (
       <Box width="100%">
@@ -105,21 +125,81 @@ export default function OrderProductPicker({ onAdd }: Props) {
             fullWidth
             options={products}
             value={selected}
+            inputValue={inputValue}
+            onInputChange={(_, newValue) => setInputValue(newValue)}
             onChange={(_, v) => {
-              setSelected(v);
-              setTimeout(() => qtyRef.current?.focus(), 50);
+              if (!v) return;
+              addProductDirect(v);
+              clearSearch();
             }}
-            getOptionLabel={(p) => p.description || p.name}
             isOptionEqualToValue={(o, v) => o.id === v.id}
+            getOptionLabel={(p) => p.name || p.description || ""}
+            renderOption={(props, p) => (
+              <li {...props}>
+                <div style={{ width: "100%", lineHeight: 1.2 }}>
+                  <div style={{ fontWeight: 700 }}>
+                    {p.name || "Sin nombre"}
+                  </div>
+
+                  {p.description && (
+                    <div style={{ fontSize: 13, opacity: 0.75 }}>
+                      {p.description}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>
+                    Cod: {p.code || "-"} — ${Number(p.sale_price).toFixed(2)}
+                  </div>
+                </div>
+              </li>
+            )}
+            filterOptions={(options, state) => {
+              const q = state.inputValue.toLowerCase();
+
+              if (!q) return options.slice(0, 20);
+
+              return options
+                .filter(
+                  (p) =>
+                    (p.name || "").toLowerCase().includes(q) ||
+                    (p.description || "").toLowerCase().includes(q) ||
+                    (p.code || "").toLowerCase().includes(q),
+                )
+                .slice(0, 20);
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Producto"
+                label="Buscar producto"
+                placeholder="Nombre, código o descripción"
                 inputRef={autoRef}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && selected) {
+                  if (e.key === "Enter") {
                     e.preventDefault();
-                    qtyRef.current?.focus();
+
+                    if (selected) {
+                      addProductDirect(selected);
+                      clearSearch();
+                      return;
+                    }
+
+                    const firstMatch = products.find(
+                      (p) =>
+                        (p.name || "")
+                          .toLowerCase()
+                          .includes(inputValue.toLowerCase()) ||
+                        (p.description || "")
+                          .toLowerCase()
+                          .includes(inputValue.toLowerCase()) ||
+                        (p.code || "")
+                          .toLowerCase()
+                          .includes(inputValue.toLowerCase()),
+                    );
+
+                    if (firstMatch) {
+                      addProductDirect(firstMatch);
+                      clearSearch();
+                    }
                   }
                 }}
               />

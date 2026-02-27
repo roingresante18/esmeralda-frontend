@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Stack,
   Paper,
@@ -89,6 +89,11 @@ export default function OrderManager({
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  useEffect(() => {
+    if (order.orderId) {
+      setHasUnsavedChanges(true);
+    }
+  }, [order.items]);
   /* ================= CONFIRM ORDER ================= */
   const {
     open: confirmOpen,

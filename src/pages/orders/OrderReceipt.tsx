@@ -31,8 +31,8 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
           <Box
             sx={{
               borderBottom: "1px solid #e0e0e0",
-              pb: 2,
-              mb: 2,
+              pb: 1,
+              mb: 1,
             }}
           >
             {/* Empresa */}
@@ -42,8 +42,8 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                 src={logoUrl}
                 alt="Logo"
                 sx={{
-                  height: 100,
-                  width: 100,
+                  height: 90,
+                  width: 130,
                   objectFit: "contain",
                 }}
               />

@@ -4,6 +4,7 @@
 
 export type OrderItem = CartItem & {
   id: number;
+  name: string;
 };
 export type CartItem = {
   id?: number; // 👈 IMPORTANTE
