@@ -31,6 +31,9 @@ import api from "../../api/api";
 import OrderDepositPDF from "./OrderDepositPDF";
 import { PDFViewer, pdf, Document } from "@react-pdf/renderer";
 import MobileOrdersList from "./MobileOrdersList";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 
 /* ============================================================
    TYPES
@@ -129,10 +132,19 @@ export default function DepositOrders() {
     try {
       const res = await api.get("/orders?last_2_weeks=true");
 
-      const newOrders: Order[] = res.data.sort(
-        (a: Order, b: Order) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-      );
+      const newOrders: Order[] = res.data.sort((a: Order, b: Order) => {
+        const deliveryDiff =
+          new Date(a.delivery_date).getTime() -
+          new Date(b.delivery_date).getTime();
+
+        if (deliveryDiff !== 0) return deliveryDiff;
+
+        // Si tienen misma fecha de entrega,
+        // el más nuevo arriba
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      });
 
       // 🔔 Detecta nuevos pedidos
       if (previousOrdersRef.current.length > 0) {
@@ -291,6 +303,7 @@ export default function DepositOrders() {
   /* ============================================================
      COLUMNS
   ============================================================ */
+  const ARG_TIMEZONE = "America/Argentina/Buenos_Aires";
 
   const columns: GridColDef<Order>[] = useMemo(
     () => [
@@ -315,26 +328,66 @@ export default function DepositOrders() {
         headerName: "Fecha entrega",
         flex: 1.2,
         renderCell: (params) => {
-          const date = params.row.delivery_date;
+          const rawDate = params.row.delivery_date;
+          if (!rawDate) return "Sin fecha";
 
-          const today = isToday(date);
-          const tomorrow = isTomorrow(date);
-          const past = isPastDate(date);
+          // 🔥 CLAVE: parseISO evita el bug de UTC
+          const parsedDate = parseISO(rawDate);
+
+          // Convertimos a horario Argentina
+          const zonedTarget = toZonedTime(parsedDate, ARG_TIMEZONE);
+          const zonedNow = toZonedTime(new Date(), ARG_TIMEZONE);
+
+          // Normalizamos a solo fecha
+          const normalize = (d: Date) =>
+            new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+          const today = normalize(zonedNow);
+          const target = normalize(zonedTarget);
+
+          const diffTime = target.getTime() - today.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+          const isPast = diffDays < 0;
+          const isToday = diffDays === 0;
+          const isTomorrow = diffDays === 1;
+          const isDayAfterTomorrow = diffDays === 2;
+
+          // 🔥 Formato en español
+          const formattedDate = format(zonedTarget, "EEEE dd/MM/yyyy", {
+            locale: es,
+          });
+
+          const finalDate =
+            formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+
+          let color: "inherit" | "error" | "warning" = "inherit";
+          let fontWeight: "normal" | "bold" = "normal";
+
+          if (isPast || isToday) {
+            color = "error";
+            fontWeight = "bold";
+          } else if (isTomorrow) {
+            color = "error";
+          } else if (isDayAfterTomorrow) {
+            color = "warning";
+          }
 
           return (
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography
-                fontWeight={past ? "bold" : "normal"}
-                color={past ? "error" : "inherit"}
-              >
-                {formatDateAR(date)}
+              <Typography fontWeight={fontWeight} color={color}>
+                {finalDate}
               </Typography>
 
-              {today && <Chip label="HOY" color="error" size="small" />}
+              {(isPast || isToday) && (
+                <Chip label="VENCIDO" color="error" size="small" />
+              )}
 
-              {tomorrow && <Chip label="MAÑANA" color="warning" size="small" />}
+              {isTomorrow && <Chip label="MAÑANA" color="error" size="small" />}
 
-              {past && <Chip label="VENCIDO" color="error" size="small" />}
+              {isDayAfterTomorrow && (
+                <Chip label="PASADO MAÑANA" color="warning" size="small" />
+              )}
             </Stack>
           );
         },

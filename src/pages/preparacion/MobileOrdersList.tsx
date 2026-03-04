@@ -11,6 +11,8 @@ import {
 import type { FC } from "react";
 import { formatDateAR } from "../../utils/dateUtils";
 import type { Order } from "../types/order";
+import { parseISO } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 interface Props {
   orders: Order[];
@@ -32,25 +34,41 @@ const getStatusColor = (status: string) => {
       return "default";
   }
 };
-
+const ARG_TIMEZONE = "America/Argentina/Buenos_Aires";
 // 🔽 NUEVA FUNCIÓN PARA ALERTA DE ENTREGA
 const getDeliveryAlert = (deliveryDate: string) => {
-  const today = new Date();
-  const delivery = new Date(deliveryDate);
+  if (!deliveryDate) return null;
 
-  // Normalizamos horas para comparar solo fecha
-  today.setHours(0, 0, 0, 0);
-  delivery.setHours(0, 0, 0, 0);
+  // 🔥 Parse correcto (evita bug UTC)
+  const parsed = parseISO(deliveryDate);
 
-  const diffInDays =
-    (delivery.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+  // Convertimos a horario Argentina
+  const zonedDelivery = toZonedTime(parsed, ARG_TIMEZONE);
+  const zonedNow = toZonedTime(new Date(), ARG_TIMEZONE);
 
-  if (diffInDays === 0) {
-    return { label: "Entregar hoy", color: "error" as const };
+  // Normalizamos a solo fecha
+  const normalize = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const today = normalize(zonedNow);
+  const delivery = normalize(zonedDelivery);
+
+  const diffInDays = Math.round(
+    (delivery.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  // 🔥 MISMA LÓGICA QUE DESKTOP
+
+  if (diffInDays <= 0) {
+    return { label: "VENCIDO", color: "error" as const };
   }
 
   if (diffInDays === 1) {
-    return { label: "Entregar mañana", color: "warning" as const };
+    return { label: "MAÑANA", color: "error" as const };
+  }
+
+  if (diffInDays === 2) {
+    return { label: "PASADO MAÑANA", color: "warning" as const };
   }
 
   return null;
@@ -64,10 +82,17 @@ const MobileOrdersList: FC<Props> = ({
   onMarkPrepared,
 }) => {
   // 🔽 Ordenar por más recientes primero
-  const sortedOrders = [...orders].sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
+  const sortedOrders = [...orders].sort((a, b) => {
+    // 1️⃣ Primero ordenamos por fecha de entrega (ASC)
+    const deliveryDiff =
+      new Date(a.delivery_date).getTime() - new Date(b.delivery_date).getTime();
+
+    if (deliveryDiff !== 0) return deliveryDiff;
+
+    // 2️⃣ Si tienen la misma fecha de entrega,
+    // el más nuevo (created_at) va primero
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   return (
     <Box>
@@ -118,7 +143,17 @@ const MobileOrdersList: FC<Props> = ({
               <Stack spacing={0.5}>
                 <Typography fontSize={14}>👤 {order.client.name}</Typography>
 
-                <Typography fontSize={14}>
+                <Typography
+                  fontSize={14}
+                  fontWeight={
+                    deliveryAlert?.label === "VENCIDO" ? "bold" : "normal"
+                  }
+                  color={
+                    deliveryAlert?.label === "VENCIDO"
+                      ? "error"
+                      : deliveryAlert?.color || "inherit"
+                  }
+                >
                   📅 {formatDateAR(order.delivery_date)}
                 </Typography>
               </Stack>
