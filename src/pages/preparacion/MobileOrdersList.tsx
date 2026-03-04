@@ -11,6 +11,7 @@ import {
 import type { FC } from "react";
 import { formatDateAR } from "../../utils/dateUtils";
 import type { Order } from "../types/order";
+
 interface Props {
   orders: Order[];
   isPrinting: boolean;
@@ -32,6 +33,29 @@ const getStatusColor = (status: string) => {
   }
 };
 
+// 🔽 NUEVA FUNCIÓN PARA ALERTA DE ENTREGA
+const getDeliveryAlert = (deliveryDate: string) => {
+  const today = new Date();
+  const delivery = new Date(deliveryDate);
+
+  // Normalizamos horas para comparar solo fecha
+  today.setHours(0, 0, 0, 0);
+  delivery.setHours(0, 0, 0, 0);
+
+  const diffInDays =
+    (delivery.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+
+  if (diffInDays === 0) {
+    return { label: "Entregar hoy", color: "error" as const };
+  }
+
+  if (diffInDays === 1) {
+    return { label: "Entregar mañana", color: "warning" as const };
+  }
+
+  return null;
+};
+
 const MobileOrdersList: FC<Props> = ({
   orders,
   isPrinting,
@@ -39,85 +63,106 @@ const MobileOrdersList: FC<Props> = ({
   onPrint,
   onMarkPrepared,
 }) => {
+  // 🔽 Ordenar por más recientes primero
+  const sortedOrders = [...orders].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
   return (
     <Box>
-      {orders.map((order) => (
-        <Card
-          key={order.id}
-          sx={{
-            mb: 2,
-            borderRadius: 3,
-            boxShadow: 3,
-          }}
-        >
-          <CardContent>
-            {/* HEADER */}
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-            >
-              <Typography fontWeight="bold" fontSize={18}>
-                Pedido #{order.id}
-              </Typography>
+      {sortedOrders.map((order) => {
+        const deliveryAlert = getDeliveryAlert(order.delivery_date);
 
-              <Chip
-                label={order.status}
-                color={getStatusColor(order.status)}
-                size="small"
-              />
-            </Stack>
-
-            <Divider sx={{ my: 1.5 }} />
-
-            {/* INFO */}
-            <Stack spacing={0.5}>
-              <Typography fontSize={14}>👤 {order.client.name}</Typography>
-
-              <Typography fontSize={14}>
-                📅 {formatDateAR(order.delivery_date)}
-              </Typography>
-            </Stack>
-
-            <Divider sx={{ my: 1.5 }} />
-
-            {/* BOTONES */}
-            <Stack spacing={1}>
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={() => onView(order)}
+        return (
+          <Card
+            key={order.id}
+            sx={{
+              mb: 2,
+              borderRadius: 3,
+              boxShadow: 3,
+            }}
+          >
+            <CardContent>
+              {/* HEADER */}
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
               >
-                Ver detalle
-              </Button>
+                <Typography fontWeight="bold" fontSize={18}>
+                  Pedido #{order.id}
+                </Typography>
 
-              {order.status === "CONFIRMED" && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  disabled={isPrinting}
-                  onClick={() => onPrint(order)}
-                >
-                  Imprimir
-                </Button>
+                <Chip
+                  label={order.status}
+                  color={getStatusColor(order.status)}
+                  size="small"
+                />
+              </Stack>
+
+              <Divider sx={{ my: 1.5 }} />
+
+              {/* ALERTA ENTREGA */}
+              {deliveryAlert && (
+                <>
+                  <Chip
+                    label={deliveryAlert.label}
+                    color={deliveryAlert.color}
+                    sx={{ mb: 1 }}
+                  />
+                </>
               )}
 
-              {order.status === "PREPARING" && (
+              {/* INFO */}
+              <Stack spacing={0.5}>
+                <Typography fontSize={14}>👤 {order.client.name}</Typography>
+
+                <Typography fontSize={14}>
+                  📅 {formatDateAR(order.delivery_date)}
+                </Typography>
+              </Stack>
+
+              <Divider sx={{ my: 1.5 }} />
+
+              {/* BOTONES */}
+              <Stack spacing={1}>
                 <Button
                   fullWidth
-                  color="success"
-                  variant="contained"
-                  onClick={() => onMarkPrepared(order.id)}
+                  variant="outlined"
+                  onClick={() => onView(order)}
                 >
-                  Marcar preparado
+                  Ver detalle
                 </Button>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
-      ))}
 
-      {!orders.length && (
+                {order.status === "CONFIRMED" && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    disabled={isPrinting}
+                    onClick={() => onPrint(order)}
+                  >
+                    Imprimir
+                  </Button>
+                )}
+
+                {order.status === "PREPARING" && (
+                  <Button
+                    fullWidth
+                    color="success"
+                    variant="contained"
+                    onClick={() => onMarkPrepared(order.id)}
+                  >
+                    Marcar preparado
+                  </Button>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {!sortedOrders.length && (
         <Typography textAlign="center" mt={4}>
           No hay pedidos
         </Typography>

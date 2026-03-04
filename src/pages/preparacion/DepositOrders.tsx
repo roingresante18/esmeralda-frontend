@@ -50,11 +50,15 @@ interface Order {
   status: "CONFIRMED" | "PREPARING" | "PREPARED" | string;
   client: {
     name: string;
+
+    phone: string;
+    address: string;
   };
   items: OrderItem[];
   created_at: string;
   delivery_date: string;
   observations?: string;
+  municipality_snapshot: string;
 }
 /* ============================================================
    DATE HELPERS EXTRA

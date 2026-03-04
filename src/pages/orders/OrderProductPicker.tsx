@@ -60,7 +60,7 @@ export default function OrderProductPicker({ onAdd }: Props) {
   const autoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get("/products").then((res) => setProducts(res.data));
+    api.get("/products?active=true").then((res) => setProducts(res.data));
   }, []);
 
   /* ============================================================
@@ -129,8 +129,7 @@ export default function OrderProductPicker({ onAdd }: Props) {
             onInputChange={(_, newValue) => setInputValue(newValue)}
             onChange={(_, v) => {
               if (!v) return;
-              addProductDirect(v);
-              clearSearch();
+              setSelected(v);
             }}
             isOptionEqualToValue={(o, v) => o.id === v.id}
             getOptionLabel={(p) => p.name || p.description || ""}
@@ -177,28 +176,30 @@ export default function OrderProductPicker({ onAdd }: Props) {
                   if (e.key === "Enter") {
                     e.preventDefault();
 
-                    if (selected) {
-                      addProductDirect(selected);
-                      clearSearch();
-                      return;
+                    let productToUse = selected;
+
+                    if (!productToUse) {
+                      const firstMatch = products.find(
+                        (p) =>
+                          (p.name || "")
+                            .toLowerCase()
+                            .includes(inputValue.toLowerCase()) ||
+                          (p.description || "")
+                            .toLowerCase()
+                            .includes(inputValue.toLowerCase()) ||
+                          (p.code || "")
+                            .toLowerCase()
+                            .includes(inputValue.toLowerCase()),
+                      );
+
+                      if (firstMatch) {
+                        productToUse = firstMatch;
+                        setSelected(firstMatch);
+                      }
                     }
 
-                    const firstMatch = products.find(
-                      (p) =>
-                        (p.name || "")
-                          .toLowerCase()
-                          .includes(inputValue.toLowerCase()) ||
-                        (p.description || "")
-                          .toLowerCase()
-                          .includes(inputValue.toLowerCase()) ||
-                        (p.code || "")
-                          .toLowerCase()
-                          .includes(inputValue.toLowerCase()),
-                    );
-
-                    if (firstMatch) {
-                      addProductDirect(firstMatch);
-                      clearSearch();
+                    if (productToUse) {
+                      qtyRef.current?.focus();
                     }
                   }
                 }}
@@ -228,12 +229,18 @@ export default function OrderProductPicker({ onAdd }: Props) {
           <Button
             ref={addBtnRef}
             variant="contained"
-            onClick={addDesktop}
+            onClick={() => {
+              addDesktop();
+              clearSearch();
+              autoRef.current?.focus();
+            }}
             disabled={!selected}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 addDesktop();
+                clearSearch();
+                autoRef.current?.focus();
               }
             }}
             sx={{ minWidth: 140, height: 56 }}

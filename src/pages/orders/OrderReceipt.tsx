@@ -10,7 +10,23 @@ type Props = {
   logoUrl?: string;
   orderDate?: string;
 };
+function toTitleCase(str: string): string {
+  if (!str) return "";
 
+  // Divide por espacios
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => {
+      // Si la palabra tiene guion o apóstrofe, también capitalizamos cada parte
+      return word
+        .split(/[-']/) // divide por - o '
+        .map((sub) => sub.charAt(0).toUpperCase() + sub.slice(1))
+        .join(""); // dejamos el guion/apóstrofe fuera, lo reinsertaremos abajo
+      // Alternativamente, podríamos usar .join("-") si queremos conservar el guion
+    })
+    .join(" ");
+}
 const OrderReceipt = forwardRef<HTMLDivElement, Props>(
   ({ order, totalAmount, logoUrl, orderDate }, ref) => {
     return (
@@ -95,13 +111,13 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
             {/* Cliente */}
             <Stack spacing={0.4}>
               <Typography fontWeight={600}>
-                {order.clientName || "—"}
+                {toTitleCase(order.clientName || "—") || " "}
               </Typography>
 
               <Typography variant="body2" color="text.secondary">
                 Tel: {order.clientPhone || "—"}
                 {"   -   "}
-                {order.municipality_snapshot}
+                {toTitleCase(order.municipality_snapshot)}
               </Typography>
             </Stack>
           </Box>

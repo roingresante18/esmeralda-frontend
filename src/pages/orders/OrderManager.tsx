@@ -82,7 +82,7 @@ export default function OrderManager({
     phone: "",
     email: "",
     address: "",
-    municipality_id: "",
+    municipality_id: null,
   });
 
   const navigate = useNavigate();
@@ -475,7 +475,7 @@ export default function OrderManager({
         open={clientModalOpen}
         onClose={() => setClientModalOpen(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="lg"
       >
         <DialogTitle>Nuevo cliente</DialogTitle>
         <DialogContent>

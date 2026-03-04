@@ -18,8 +18,12 @@ interface Order {
   id: number;
   client: {
     name: string;
+
+    phone: string;
+    address: string;
   };
   items: OrderItem[];
+  municipality_snapshot: string;
 }
 
 interface Props {
@@ -90,6 +94,9 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
       {/* INFO GENERAL */}
       <View style={styles.section}>
         <Text>Cliente: {order.client.name}</Text>
+        <Text>Telefono: {order.client.phone}</Text>
+        <Text>Dirección: {order.client.address}</Text>
+        <Text>Localidad: {order.municipality_snapshot}</Text>
       </View>
 
       {/* TABLA PRODUCTOS */}

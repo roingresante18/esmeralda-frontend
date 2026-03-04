@@ -1,202 +1,207 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Container,
   Typography,
-  TextField,
-  Paper,
-  IconButton,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
+  TextField,
+  Box,
 } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridRenderCellParams,
+} from "@mui/x-data-grid";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import IconButton from "@mui/material/IconButton";
 
 import api from "../../../api/api";
 import ClientForm from "./components/ClientForm";
-import type { ClientFormData } from "./components/ClientForm.types";
+import type {
+  ClientFormData,
+  Municipality,
+} from "./components/ClientForm.types";
 
-/* =======================
-   TIPOS
-======================= */
+/* ================= TIPOS ================= */
 
 interface Client extends ClientFormData {
   id: number;
 }
 
-/* =======================
-   CONSTANTES
-======================= */
+/* ================= VALOR INICIAL ================= */
 
 const emptyClient: ClientFormData = {
   name: "",
+  phone: "",
+  email: "",
   address: "",
   municipality_id: null,
+  latitude: undefined,
+  longitude: undefined,
 };
-
-/* =======================
-   COMPONENTE
-======================= */
 
 export default function ClientManager() {
   const [clients, setClients] = useState<Client[]>([]);
-  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+
+  const [formData, setFormData] = useState<ClientFormData>(emptyClient);
+  const [editingClientId, setEditingClientId] = useState<number | null>(null);
+
+  const [openCreate, setOpenCreate] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+
   const [search, setSearch] = useState("");
 
-  const [newClient, setNewClient] = useState<ClientFormData>(emptyClient);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  /* ================= DELETE STATES ================= */
 
-  const [openEdit, setOpenEdit] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
+  const [openDeleteSuccess, setOpenDeleteSuccess] = useState(false);
+  const [openDeleteError, setOpenDeleteError] = useState(false);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState("");
 
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
-  /* =======================
-     FETCH CLIENTES
-  ======================= */
+  /* ================= FETCH ================= */
 
   const fetchClients = async () => {
-    const res = await api.get("/clients");
-    setClients(res.data);
-    setFilteredClients(res.data);
+    try {
+      const res = await api.get("/clients");
+      setClients(res.data);
+    } catch {
+      setGeneralError("Error al cargar clientes");
+    }
+  };
+
+  const fetchMunicipalities = async () => {
+    try {
+      const res = await api.get("/municipalities");
+      setMunicipalities(res.data);
+    } catch {
+      setGeneralError("Error al cargar municipios");
+    }
   };
 
   useEffect(() => {
     fetchClients();
+    fetchMunicipalities();
   }, []);
 
-  /* =======================
-     BUSCADOR
-  ======================= */
+  /* ================= MAP ID → NAME ================= */
 
-  useEffect(() => {
-    const value = search.toLowerCase();
+  const municipalityMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    municipalities.forEach((m) => {
+      map[m.id] = m.name;
+    });
+    return map;
+  }, [municipalities]);
 
-    setFilteredClients(
-      clients.filter(
-        (c) =>
-          c.name.toLowerCase().includes(value) ||
-          c.email?.toLowerCase().includes(value) ||
-          c.phone?.includes(value),
-      ),
-    );
-  }, [search, clients]);
+  /* ================= DELETE ================= */
 
-  /* =======================
-     CREATE
-  ======================= */
-
-  const handleCreate = async () => {
-    setLoading(true);
-
-    try {
-      const payload: any = {
-        name: newClient.name,
-        address: newClient.address,
-        municipality_id: newClient.municipality_id,
-      };
-
-      // Agregar opcionales solo si tienen valor
-      if (newClient.email) payload.email = newClient.email;
-      if (newClient.phone) payload.phone = newClient.phone;
-      if (newClient.latitude) payload.latitude = newClient.latitude;
-      if (newClient.longitude) payload.longitude = newClient.longitude;
-
-      await api.post("/clients", payload);
-
-      setNewClient(emptyClient);
-      fetchClients();
-      alert("✅ Cliente creado correctamente");
-    } catch {
-      alert("❌ Error al crear cliente");
-    } finally {
-      setLoading(false);
-    }
+  const handleDeleteClick = (id: number) => {
+    setDeleteId(id);
+    setOpenConfirmDelete(true);
   };
 
-  /* =======================
-     UPDATE
-  ======================= */
-
-  const handleUpdate = async () => {
-    if (!selectedClient) return;
+  const confirmDelete = async () => {
+    if (!deleteId) return;
 
     try {
-      const payload = {
-        name: selectedClient.name,
-        email: selectedClient.email || null,
-        phone: selectedClient.phone || null,
-        address: selectedClient.address,
-        municipality_id: selectedClient.municipality_id,
-        latitude: selectedClient.latitude ?? null,
-        longitude: selectedClient.longitude ?? null,
-      };
-
-      await api.patch(`/clients/${selectedClient.id}`, payload);
-
-      setOpenEdit(false);
-      fetchClients();
-      alert("✅ Cliente actualizado");
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.message?.join?.(", ") ||
-        "Error al actualizar cliente";
-
-      alert(`❌ ${message}`);
-    }
-  };
-
-  /* =======================
-     DELETE
-  ======================= */
-
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("¿Eliminar cliente?")) return;
-
-    try {
-      await api.delete(`/clients/${id}`);
+      await api.delete(`/clients/${deleteId}`);
+      setOpenConfirmDelete(false);
+      setOpenDeleteSuccess(true);
       fetchClients();
     } catch (err: any) {
-      const message =
-        err?.response?.data?.message ||
-        "No se puede eliminar el cliente porque tiene órdenes asociadas";
+      setOpenConfirmDelete(false);
 
-      alert(`❌ ${message}`);
+      let message = "No se pudo eliminar el cliente: ";
+      if (err?.response?.data?.message) {
+        message = err.response.data.message;
+      }
+
+      setDeleteErrorMessage(message);
+      setOpenDeleteError(true);
     }
   };
 
-  /* =======================
-     TABLA
-  ======================= */
+  /* ================= FILTRO ================= */
+
+  const filteredClients = useMemo(() => {
+    if (!search.trim()) return clients;
+
+    const term = search.toLowerCase();
+
+    return clients.filter((client) => {
+      const municipalityName =
+        client.municipality_id && municipalityMap[client.municipality_id]
+          ? municipalityMap[client.municipality_id].toLowerCase()
+          : "";
+
+      return (
+        client.name.toLowerCase().includes(term) ||
+        client.phone.includes(term) ||
+        municipalityName.includes(term)
+      );
+    });
+  }, [clients, search, municipalityMap]);
+
+  /* ================= COLUMNAS ================= */
 
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", width: 80 },
-    { field: "name", headerName: "Nombre", width: 180 },
-    { field: "email", headerName: "Email", width: 220 },
-    { field: "phone", headerName: "Teléfono", width: 140 },
-    { field: "address", headerName: "Dirección", width: 220 },
+    { field: "name", headerName: "Nombre", width: 200 },
+    { field: "phone", headerName: "Teléfono", width: 150 },
+    { field: "email", headerName: "Email", width: 150 },
+    { field: "address", headerName: "Direccion", width: 150 },
+    {
+      field: "municipalityName",
+      headerName: "Municipio",
+      width: 180,
+      renderCell: (params) => {
+        const client = params.row as Client;
+        const id = client.municipality_id;
+
+        return id && municipalityMap[id] ? municipalityMap[id] : "—";
+      },
+    },
     {
       field: "actions",
       headerName: "Acciones",
       width: 120,
-      renderCell: (params) => (
+      sortable: false,
+      filterable: false,
+      renderCell: (params: GridRenderCellParams<Client>) => (
         <>
           <IconButton
             onClick={() => {
-              setSelectedClient(params.row);
+              const client = params.row;
+
+              setFormData({
+                name: client.name,
+                phone: client.phone,
+                email: client.email,
+                address: client.address,
+                municipality_id: client.municipality_id,
+                latitude: client.latitude,
+                longitude: client.longitude,
+              });
+
+              setEditingClientId(client.id);
               setOpenEdit(true);
             }}
           >
             <EditIcon />
           </IconButton>
 
-          <IconButton color="error" onClick={() => handleDelete(params.row.id)}>
+          <IconButton
+            color="error"
+            onClick={() => handleDeleteClick(params.row.id)}
+          >
             <DeleteIcon />
           </IconButton>
         </>
@@ -204,9 +209,7 @@ export default function ClientManager() {
     },
   ];
 
-  /* =======================
-     RENDER
-  ======================= */
+  /* ================= RENDER ================= */
 
   return (
     <Container sx={{ mt: 4 }}>
@@ -214,59 +217,130 @@ export default function ClientManager() {
         Gestión de Clientes
       </Typography>
 
-      {/* FORM CREAR */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <ClientForm
-          mode="create"
-          value={newClient}
-          onChange={setNewClient}
-          onSubmit={handleCreate}
-          loading={loading}
+      {generalError && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {generalError}
+        </Typography>
+      )}
+
+      <Button
+        variant="contained"
+        sx={{ mb: 2 }}
+        onClick={() => {
+          setFormData(emptyClient);
+          setEditingClientId(null);
+          setOpenCreate(true);
+        }}
+      >
+        Nuevo cliente
+      </Button>
+
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          fullWidth
+          label="Buscar por nombre, teléfono o municipio"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-      </Paper>
+      </Box>
 
-      {/* BUSCADOR */}
-      <TextField
-        label="Buscar cliente"
-        fullWidth
-        sx={{ mb: 3 }}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
-      {/* TABLA */}
-      <div style={{ height: 420 }}>
+      <div style={{ height: 450 }}>
         <DataGrid
           rows={filteredClients}
           columns={columns}
-          getRowId={(r) => r.id}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 25]}
-          disableRowSelectionOnClick
+          getRowId={(row) => row.id}
         />
       </div>
 
-      {/* MODAL EDITAR */}
-      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth>
+      {/* ================= CREAR ================= */}
+
+      <Dialog
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>Nuevo Cliente</DialogTitle>
+        <DialogContent>
+          <ClientForm
+            mode="create"
+            value={formData}
+            onChange={setFormData}
+            onSuccess={() => {
+              fetchClients();
+              setOpenCreate(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= EDITAR ================= */}
+
+      <Dialog
+        open={openEdit}
+        onClose={() => setOpenEdit(false)}
+        fullWidth
+        maxWidth="lg"
+      >
         <DialogTitle>Editar Cliente</DialogTitle>
         <DialogContent>
-          {selectedClient && (
-            <ClientForm
-              mode="edit"
-              value={selectedClient}
-              onChange={(data) =>
-                setSelectedClient({ ...selectedClient, ...data })
+          <ClientForm
+            mode="edit"
+            value={formData}
+            onChange={setFormData}
+            onSuccess={async () => {
+              try {
+                if (editingClientId) {
+                  await api.patch(`/clients/${editingClientId}`, formData);
+                }
+                fetchClients();
+                setOpenEdit(false);
+              } catch {
+                setGeneralError("Error al actualizar cliente");
               }
-              onSubmit={handleUpdate}
-            />
-          )}
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= CONFIRM DELETE ================= */}
+
+      <Dialog
+        open={openConfirmDelete}
+        onClose={() => setOpenConfirmDelete(false)}
+      >
+        <DialogTitle>Confirmar eliminación</DialogTitle>
+        <DialogContent>
+          ¿Está seguro que desea eliminar este cliente?
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenEdit(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleUpdate}>
-            Guardar
+          <Button onClick={() => setOpenConfirmDelete(false)}>Cancelar</Button>
+          <Button color="error" onClick={confirmDelete}>
+            Eliminar
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ================= DELETE SUCCESS ================= */}
+
+      <Dialog
+        open={openDeleteSuccess}
+        onClose={() => setOpenDeleteSuccess(false)}
+      >
+        <DialogTitle>Eliminación exitosa</DialogTitle>
+        <DialogContent>El cliente fue eliminado correctamente.</DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteSuccess(false)}>Aceptar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ================= DELETE ERROR ================= */}
+
+      <Dialog open={openDeleteError} onClose={() => setOpenDeleteError(false)}>
+        <DialogTitle>Error al eliminar</DialogTitle>
+        <DialogContent>{deleteErrorMessage}</DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteError(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Container>

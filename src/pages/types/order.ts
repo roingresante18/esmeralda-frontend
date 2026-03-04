@@ -9,6 +9,9 @@ export interface OrderItem {
 
 export interface Client {
   name: string;
+
+  phone: string;
+  address: string;
 }
 
 export interface Order {
@@ -18,4 +21,5 @@ export interface Order {
   client: Client;
   items: OrderItem[];
   created_at: string;
+  municipality_snapshot: string;
 }

@@ -8,199 +8,212 @@ import {
   InputLabel,
   FormHelperText,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogActions,
+  Paper,
+  Typography,
+  Divider,
 } from "@mui/material";
-import MyLocationIcon from "@mui/icons-material/MyLocation";
 import { useEffect, useState } from "react";
 import type { ClientFormData, Municipality } from "./ClientForm.types";
 import api from "../../../../api/api";
+import "leaflet/dist/leaflet.css";
+import MapPicker from "./MapPicker";
 
-type Mode = "create" | "edit" | "logistics";
+type Mode = "create" | "edit";
 
 interface Props {
   mode: Mode;
   value: ClientFormData;
   onChange: (data: ClientFormData) => void;
-  onSubmit: () => void;
-  municipalities?: Municipality[];
-  loading?: boolean;
+  onSuccess?: (client: any) => void;
 }
 
 export default function ClientForm({
   mode,
   value,
   onChange,
-  onSubmit,
-  loading = false,
+  onSuccess,
 }: Props) {
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [loadingGeo, setLoadingGeo] = useState(false);
-  const [confirmGps, setConfirmGps] = useState(false);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [existingClient, setExistingClient] = useState<any | null>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  const readOnly = mode === "logistics";
-
-  /* =======================
-     CARGAR MUNICIPIOS
-  ======================= */
-
+  /* ================= CARGAR MUNICIPIOS ================= */
   useEffect(() => {
-    api.get("/logistics/municipalities").then((res) => {
-      setMunicipalities(res.data.municipalities);
-    });
+    api
+      .get("/logistics/municipalities")
+      .then((res) => setMunicipalities(res.data.municipalities))
+      .catch(() => setMunicipalities([]));
   }, []);
 
-  /* =======================
-     VALIDACIONES
-     Obligatorios:
-     - name
-     - phone
-     - municipality_id
-  ======================= */
-
-  const validate = () => {
-    const errs: Record<string, string> = {};
-
-    if (mode !== "logistics") {
-      if (!value.name?.trim()) {
-        errs.name = "Nombre obligatorio";
-      }
-
-      if (!value.phone?.trim()) {
-        errs.phone = "Teléfono obligatorio";
-      }
-
-      if (!value.municipality_id) {
-        errs.municipality_id = "Seleccione municipio";
-      }
-
-      // Email opcional pero validado si existe
-      if (value.email && !/^\S+@\S+\.\S+$/.test(value.email)) {
-        errs.email = "Email inválido";
-      }
-    }
-
-    // GPS obligatorio solo para logística
-    if (mode === "logistics") {
-      if (!value.latitude || !value.longitude) {
-        errs.gps = "Debe capturar ubicación";
-      }
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  /* =======================
-     GEOLOCALIZACIÓN
-  ======================= */
-
-  const getLocation = () => {
-    if (!navigator.geolocation) return;
-
-    setLoadingGeo(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        onChange({
-          ...value,
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-        setLoadingGeo(false);
-      },
-      () => setLoadingGeo(false),
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
-      },
-    );
-  };
-
-  /* =======================
-     SUBMIT
-  ======================= */
-
-  const handleSubmit = () => {
-    if (!validate()) return;
-
-    if (mode === "logistics") {
-      setConfirmGps(true);
+  /* ================= BUSCAR DUPLICADOS ================= */
+  useEffect(() => {
+    if (!value.phone || value.phone.length < 4) {
+      setSuggestions([]);
+      setExistingClient(null);
       return;
     }
 
-    onSubmit();
+    const timer = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const res = await api.get(`/clients/search?phone=${value.phone}`);
+        if (res.data.exact) {
+          setExistingClient(res.data.exact);
+          setSuggestions([]);
+        } else {
+          setExistingClient(null);
+          setSuggestions(res.data.suggestions || []);
+        }
+      } catch {
+        setExistingClient(null);
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [value.phone]);
+
+  /* ================= VALIDACIONES ================= */
+  const isNameValid = !!value.name?.trim();
+  const isPhoneValid = !!value.phone?.trim() && /^\d{10,13}$/.test(value.phone);
+  const isMunicipalityValid =
+    value.municipality_id !== null && value.municipality_id !== undefined;
+  const isEmailValid =
+    !value.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email);
+
+  const isFormValid =
+    isNameValid &&
+    isPhoneValid &&
+    isMunicipalityValid &&
+    isEmailValid &&
+    !(existingClient && mode === "create") &&
+    !searching;
+
+  /* ================= SUBMIT AUTÓNOMO ================= */
+  const handleSubmit = async () => {
+    if (!isFormValid) return;
+
+    setServerError(null);
+    setLoading(true);
+
+    try {
+      let response;
+
+      if (mode === "create") {
+        response = await api.post("/clients", value);
+      } else {
+        response = await api.patch(`/clients/${value.id}`, value);
+      }
+
+      onSuccess?.(response.data);
+    } catch (err: any) {
+      let message = "Error al guardar cliente";
+
+      if (err?.response?.data?.message) {
+        if (Array.isArray(err.response.data.message)) {
+          message = err.response.data.message.join(", ");
+        } else {
+          message = err.response.data.message;
+        }
+      }
+
+      setServerError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const confirmGpsUpdate = () => {
-    setConfirmGps(false);
-    onSubmit();
-  };
-
-  /* =======================
-     RENDER
-  ======================= */
-
+  /* ================= RENDER ================= */
   return (
-    <>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", md: "row" },
+        gap: 3,
+        height: "100%",
+      }}
+    >
+      {/* ================= FORMULARIO ================= */}
       <Box
         sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: "repeat(3, 1fr)",
+          flex: 0.3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+          overflowY: "auto",
+          maxHeight: "80vh",
         }}
       >
-        {/* ================= NOMBRE (obligatorio) ================= */}
+        {/* ERROR BACKEND */}
+        {serverError && (
+          <Paper
+            sx={{
+              p: 2,
+              borderLeft: "5px solid #d32f2f",
+              backgroundColor: "#fff5f5",
+            }}
+          >
+            <Typography color="error">{serverError}</Typography>
+          </Paper>
+        )}
+
+        {/* NOMBRE */}
         <TextField
-          label="Nombre"
+          label="Nombre *"
           required
           value={value.name}
-          disabled={readOnly}
-          error={!!errors.name}
-          helperText={errors.name}
-          onChange={(e) => onChange({ ...value, name: e.target.value })}
+          error={!isNameValid && value.name !== ""}
+          helperText={
+            !isNameValid && value.name !== "" ? "Nombre obligatorio" : ""
+          }
+          onChange={(e) =>
+            onChange({ ...value, name: e.target.value.toUpperCase() })
+          }
         />
 
-        {/* ================= EMAIL (opcional) ================= */}
+        {/* TELÉFONO */}
         <TextField
-          label="Email"
-          value={value.email || ""}
-          disabled={readOnly}
-          error={!!errors.email}
-          helperText={errors.email}
-          onChange={(e) => onChange({ ...value, email: e.target.value })}
-        />
-
-        {/* ================= TELÉFONO (obligatorio) ================= */}
-        <TextField
-          label="Teléfono"
+          label="Teléfono *"
           required
           value={value.phone || ""}
-          disabled={readOnly}
-          error={!!errors.phone}
-          helperText={errors.phone}
-          onChange={(e) => onChange({ ...value, phone: e.target.value })}
+          error={
+            (!isPhoneValid && value.phone !== "") ||
+            (existingClient && mode === "create") ||
+            serverError?.toLowerCase().includes("teléfono")
+          }
+          helperText={
+            serverError?.toLowerCase().includes("teléfono")
+              ? serverError
+              : existingClient && mode === "create"
+                ? `⚠️ Ya existe un cliente: ${existingClient.name}`
+                : !isPhoneValid && value.phone !== ""
+                  ? "Debe tener entre 10 y 13 dígitos numéricos"
+                  : ""
+          }
+          onChange={(e) =>
+            onChange({ ...value, phone: e.target.value.replace(/\D/g, "") })
+          }
+          InputProps={{
+            endAdornment: (searching || loading) && (
+              <CircularProgress size={18} />
+            ),
+          }}
         />
 
-        {/* ================= DIRECCIÓN (opcional) ================= */}
-        <TextField
-          label="Dirección"
-          value={value.address || ""}
-          disabled={readOnly}
-          onChange={(e) => onChange({ ...value, address: e.target.value })}
-        />
-
-        {/* ================= MUNICIPIO (obligatorio) ================= */}
-        <FormControl error={!!errors.municipality_id} disabled={readOnly}>
-          <InputLabel>Municipio</InputLabel>
-
+        {/* MUNICIPIO */}
+        <FormControl
+          required
+          error={!isMunicipalityValid && value.municipality_id !== null}
+        >
+          <InputLabel>Municipio *</InputLabel>
           <Select
-            label="Municipio"
-            required
             value={value.municipality_id ?? ""}
+            label="Municipio *"
             onChange={(e) =>
               onChange({
                 ...value,
@@ -214,46 +227,92 @@ export default function ClientForm({
               </MenuItem>
             ))}
           </Select>
-
-          <FormHelperText>{errors.municipality_id}</FormHelperText>
+          <FormHelperText>
+            {!isMunicipalityValid && value.municipality_id !== null
+              ? "Seleccione municipio"
+              : ""}
+          </FormHelperText>
         </FormControl>
 
-        {/* ================= BOTÓN GPS ================= */}
-        <Button
-          variant="outlined"
-          startIcon={
-            loadingGeo ? <CircularProgress size={18} /> : <MyLocationIcon />
+        {/* SUGERENCIAS */}
+        {suggestions.length > 0 && (
+          <Paper>
+            {suggestions.map((client) => (
+              <MenuItem
+                key={client.id}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    phone: client.phone,
+                    name: client.name,
+                    address: client.address,
+                    municipality_id: client.municipality_id,
+                  })
+                }
+              >
+                {client.name} — {client.phone}
+              </MenuItem>
+            ))}
+          </Paper>
+        )}
+
+        {/* OPCIONALES */}
+        <TextField
+          label="Email"
+          value={value.email || ""}
+          error={!isEmailValid && value.email !== ""}
+          helperText={
+            !isEmailValid && value.email !== "" ? "Email inválido" : ""
           }
-          onClick={getLocation}
+          onChange={(e) => onChange({ ...value, email: e.target.value })}
+        />
+
+        <TextField
+          label="Dirección"
+          value={value.address || ""}
+          onChange={(e) => onChange({ ...value, address: e.target.value })}
+        />
+
+        <Button
+          variant="contained"
+          size="large"
+          disabled={!isFormValid || loading}
+          onClick={handleSubmit}
         >
-          Capturar ubicación
+          {mode === "create" ? "Crear cliente" : "Guardar cambios"}
         </Button>
 
-        {/* ================= SUBMIT ================= */}
-        <Button variant="contained" onClick={handleSubmit} disabled={loading}>
-          {mode === "create" && "Crear cliente"}
-          {mode === "edit" && "Guardar cambios"}
-          {mode === "logistics" && "Confirmar entrega"}
-        </Button>
-
-        {/* Error GPS */}
-        {errors.gps && <FormHelperText error>{errors.gps}</FormHelperText>}
+        <Divider />
       </Box>
 
-      {/* ================= CONFIRMACIÓN GPS ================= */}
-      <Dialog open={confirmGps} onClose={() => setConfirmGps(false)}>
-        <DialogTitle>
-          ¿Autoriza actualizar la ubicación del cliente con el GPS actual?
-        </DialogTitle>
-
-        <DialogActions>
-          <Button onClick={() => setConfirmGps(false)}>Cancelar</Button>
-
-          <Button variant="contained" onClick={confirmGpsUpdate}>
-            Confirmar
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+      {/* ================= MAPA ================= */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 400,
+          border: "1px solid #ccc",
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        <Typography variant="h6" sx={{ p: 1 }}>
+          Ubicación del cliente
+        </Typography>
+        <MapPicker
+          initialPosition={
+            value.latitude
+              ? { lat: value.latitude, lng: value.longitude }
+              : null
+          }
+          onSelect={(latlng: any) =>
+            onChange({
+              ...value,
+              latitude: latlng.lat,
+              longitude: latlng.lng,
+            })
+          }
+        />
+      </Box>
+    </Box>
   );
 }
