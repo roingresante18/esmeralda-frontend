@@ -16,12 +16,13 @@ import {
   useTheme,
   useMediaQuery,
   Divider,
+  CircularProgress,
 } from "@mui/material";
 import api from "../../api/api";
 import { formatDateOnlyAR } from "../../utils/date";
 
 /* ============================================================
-   TYPES
+TYPES
 ============================================================ */
 
 interface Product {
@@ -46,12 +47,13 @@ interface Order {
 }
 
 /* ============================================================
-   COMPONENT
+COMPONENT
 ============================================================ */
 
 export default function ControlOrders() {
   const navigate = useNavigate();
   const theme = useTheme();
+
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -59,20 +61,31 @@ export default function ControlOrders() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
   const [checkedItems, setCheckedItems] = useState<number[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (isMobile) {
+      navigate("/control-orders/mobile", { replace: true });
+    }
+  }, [isMobile, navigate]);
   /* ============================================================
-     FETCH - Solo PREPARED
-  ============================================================ */
+FETCH ORDERS
+============================================================ */
 
   const fetchOrders = async () => {
     try {
       const res = await api.get("/orders?last_2_weeks=true");
 
-      const preparedOrders = res.data.filter(
-        (o: Order) => o.status === "PREPARED",
-      );
+      const preparedOrders = res.data
+        .filter((o: Order) => o.status === "PREPARED")
+        .sort(
+          (a: Order, b: Order) =>
+            new Date(a.delivery_date).getTime() -
+            new Date(b.delivery_date).getTime(),
+        );
 
       setOrders(preparedOrders);
     } catch (err) {
@@ -92,22 +105,50 @@ export default function ControlOrders() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    fetchOrders();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /* AUTO REDIRECT MOBILE */
+
+  useEffect(() => {
+    if (isMobile) {
+      navigate("/control-orders/mobile", { replace: true });
+    }
+  }, [isMobile, navigate]);
   /* ============================================================
-     STATUS HANDLERS
-  ============================================================ */
+STATUS CHANGE
+============================================================ */
 
   const changeStatus = async (id: number, newStatus: string) => {
-    await api.patch(`/orders/${id}/status`, {
-      new_status: newStatus,
-    });
+    try {
+      setLoading(true);
 
-    fetchOrders();
-    setSelectedOrder(null);
+      await api.patch(`/orders/${id}/status`, {
+        new_status: newStatus,
+      });
+
+      await fetchOrders();
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error("Error cambiando estado", err);
+      alert("Error al actualizar el pedido");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* ============================================================
-     CHECKLIST
-  ============================================================ */
+CHECKLIST
+============================================================ */
 
   const handleCheck = (index: number) => {
     setCheckedItems((prev) =>
@@ -115,16 +156,43 @@ export default function ControlOrders() {
     );
   };
 
+  const markAll = () => {
+    if (!selectedOrder) return;
+
+    const allIndexes = selectedOrder.items.map((_, i) => i);
+    setCheckedItems(allIndexes);
+  };
+
   const allChecked =
     selectedOrder && checkedItems.length === selectedOrder.items.length;
 
   /* ============================================================
-     COLUMNS
-  ============================================================ */
+DATE STATUS
+============================================================ */
+
+  const getDeliveryStatus = (date: string) => {
+    const today = new Date();
+    const delivery = new Date(date);
+
+    today.setHours(0, 0, 0, 0);
+    delivery.setHours(0, 0, 0, 0);
+
+    if (delivery < today) return "late";
+    if (delivery.getTime() === today.getTime()) return "today";
+    return "future";
+  };
+
+  /* ============================================================
+COLUMNS
+============================================================ */
 
   const columns: GridColDef<Order>[] = useMemo(
     () => [
-      { field: "id", headerName: "Pedido", flex: 0.4 },
+      {
+        field: "id",
+        headerName: "Pedido",
+        flex: 0.4,
+      },
 
       {
         field: "client",
@@ -134,11 +202,34 @@ export default function ControlOrders() {
       },
 
       {
+        field: "items_count",
+        headerName: "Items",
+        flex: 0.4,
+        valueGetter: (_v, row) => row.items.length,
+      },
+
+      {
         field: "delivery_date",
-        headerName: "Fecha entrega",
+        headerName: "Entrega",
         flex: 1,
-        valueGetter: (_v, row) =>
-          row.delivery_date ? formatDateOnlyAR(row.delivery_date) : "",
+        renderCell: (params) => {
+          const status = getDeliveryStatus(params.row.delivery_date);
+
+          const color =
+            status === "late"
+              ? "error"
+              : status === "today"
+                ? "warning"
+                : "success";
+
+          return (
+            <Chip
+              label={formatDateOnlyAR(params.row.delivery_date)}
+              color={color}
+              size="small"
+            />
+          );
+        },
       },
 
       {
@@ -153,7 +244,7 @@ export default function ControlOrders() {
       {
         field: "actions",
         headerName: "Acciones",
-        flex: 1.2,
+        flex: 1.4,
         sortable: false,
         renderCell: (params) => {
           const order = params.row;
@@ -173,7 +264,7 @@ export default function ControlOrders() {
                   setSelectedOrder(order);
                 }}
               >
-                Ver
+                Controlar
               </Button>
 
               <Button
@@ -183,7 +274,7 @@ export default function ControlOrders() {
                 variant="contained"
                 onClick={() => changeStatus(order.id, "PREPARING")}
               >
-                Volver a preparar
+                Vuelve Deposito
               </Button>
             </Stack>
           );
@@ -194,12 +285,13 @@ export default function ControlOrders() {
   );
 
   /* ============================================================
-     RENDER
-  ============================================================ */
+RENDER
+============================================================ */
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
       {/* HEADER */}
+
       <Stack
         direction={isMobile ? "column" : "row"}
         justifyContent="space-between"
@@ -211,6 +303,7 @@ export default function ControlOrders() {
           <Typography variant="h4" fontWeight="bold">
             Control de Pedidos
           </Typography>
+
           <Typography variant="subtitle1" color="text.secondary">
             Usuario: {loggedUser?.full_name || "Usuario"}
           </Typography>
@@ -222,7 +315,8 @@ export default function ControlOrders() {
       </Stack>
 
       {/* TABLA */}
-      <Box sx={{ width: "100%", height: { xs: "auto", md: 500 } }}>
+
+      <Box sx={{ width: "100%", height: { xs: "auto", md: 520 } }}>
         <DataGrid
           rows={orders}
           columns={columns}
@@ -233,7 +327,8 @@ export default function ControlOrders() {
         />
       </Box>
 
-      {/* MODAL CHECKLIST */}
+      {/* CHECKLIST */}
+
       <Dialog
         open={!!selectedOrder}
         onClose={() => setSelectedOrder(null)}
@@ -248,32 +343,47 @@ export default function ControlOrders() {
             Cliente: {selectedOrder?.client.name}
           </Typography>
 
+          <Typography variant="caption">
+            {checkedItems.length} / {selectedOrder?.items.length} controlados
+          </Typography>
+
           <Divider sx={{ my: 2 }} />
 
-          <Stack spacing={1}>
-            {selectedOrder?.items.map((item, index) => (
-              <Box
-                key={index}
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <Box>
-                  <Typography>{item.product.description}</Typography>
-                  <Typography variant="caption">
-                    Cantidad: {item.quantity}
-                  </Typography>
-                </Box>
+          <Button size="small" onClick={markAll}>
+            Marcar todo
+          </Button>
 
-                <Checkbox
-                  checked={checkedItems.includes(index)}
-                  onChange={() => handleCheck(index)}
-                />
-              </Box>
-            ))}
+          <Stack spacing={1.2} mt={1}>
+            {selectedOrder?.items.map((item, index) => {
+              const checked = checkedItems.includes(index);
+
+              return (
+                <Box
+                  key={index}
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{
+                    p: 1,
+                    borderRadius: 1,
+                    bgcolor: checked ? "#e8f5e9" : "transparent",
+                  }}
+                >
+                  <Typography>
+                    {item.quantity}x {item.product.description}
+                  </Typography>
+
+                  <Checkbox
+                    checked={checked}
+                    onChange={() => handleCheck(index)}
+                  />
+                </Box>
+              );
+            })}
           </Stack>
+
           <Typography mt={2} fontWeight="bold">
-            Observaciones: {selectedOrder?.observations}
+            Observaciones: {selectedOrder?.observations || "—"}
           </Typography>
         </DialogContent>
 
@@ -292,12 +402,18 @@ export default function ControlOrders() {
       </Dialog>
 
       {/* CONFIRMACION */}
+
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <DialogTitle>Confirmar Control</DialogTitle>
 
         <DialogContent>
           <Typography>
-            ¿Confirma que el pedido fue controlado con éxito?
+            Confirmar control del pedido #{selectedOrder?.id} de{" "}
+            <b>{selectedOrder?.client.name}</b>
+          </Typography>
+
+          <Typography mt={1}>
+            Items controlados: {checkedItems.length}
           </Typography>
         </DialogContent>
 
@@ -307,14 +423,16 @@ export default function ControlOrders() {
           <Button
             variant="contained"
             color="success"
+            disabled={loading}
             onClick={() => {
               if (selectedOrder) {
                 changeStatus(selectedOrder.id, "QUALITY_CHECKED");
               }
+
               setConfirmOpen(false);
             }}
           >
-            Confirmar
+            {loading ? <CircularProgress size={22} /> : "Confirmar"}
           </Button>
         </DialogActions>
       </Dialog>

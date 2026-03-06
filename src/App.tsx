@@ -26,7 +26,7 @@ import DepositOrders from "./pages/preparacion/DepositOrders";
 import LogisticsOrders from "./pages/preparacion/LogisticsOrders";
 import OrdersDashboard from "./pages/orders/OrdersDashboard";
 import DriverOrders from "./pages/DriverOrders/DriverOrders";
-
+import ControlOrdersMobile from "./pages/preparacion/ControlOrdersMobile";
 function App() {
   return (
     <AuthProvider>
@@ -142,6 +142,14 @@ function App() {
             element={
               <ProtectedRoute roles={["ADMIN", "CONTROL"]}>
                 <ControlOrders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/control-orders/mobile"
+            element={
+              <ProtectedRoute roles={["ADMIN", "CONTROL"]}>
+                <ControlOrdersMobile />
               </ProtectedRoute>
             }
           />
