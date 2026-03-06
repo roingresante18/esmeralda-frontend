@@ -25,7 +25,7 @@ import ControlOrders from "./pages/preparacion/ControlOrders";
 import DepositOrders from "./pages/preparacion/DepositOrders";
 import LogisticsOrders from "./pages/preparacion/LogisticsOrders";
 import OrdersDashboard from "./pages/orders/OrdersDashboard";
-import DriverOrders from "./pages/preparacion/DriverOrders";
+import DriverOrders from "./pages/DriverOrders/DriverOrders";
 
 function App() {
   return (

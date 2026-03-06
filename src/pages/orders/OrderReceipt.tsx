@@ -177,7 +177,11 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                   </Typography>
 
                   <Typography fontWeight={700} fontSize={15}>
-                    ${total.toLocaleString("es-AR")}
+                    $
+                    {total.toLocaleString("es-AR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </Typography>
                 </Stack>
 

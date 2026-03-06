@@ -24,6 +24,7 @@ interface Order {
   };
   items: OrderItem[];
   municipality_snapshot: string;
+  observations?: string;
 }
 
 interface Props {
@@ -93,10 +94,12 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
 
       {/* INFO GENERAL */}
       <View style={styles.section}>
-        <Text>Cliente: {order.client.name}</Text>
-        <Text>Telefono: {order.client.phone}</Text>
-        <Text>Dirección: {order.client.address}</Text>
-        <Text>Localidad: {order.municipality_snapshot}</Text>
+        <Text>
+          Cliente: {order.client.name} {" // "} {order.client.phone} {" // "}{" "}
+          Dirección: {order.client.address} {" // "} Localidad:{" "}
+          {order.municipality_snapshot}
+        </Text>
+        <Text>Observaciones: {order.observations}</Text>
       </View>
 
       {/* TABLA PRODUCTOS */}
@@ -112,13 +115,14 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
             <Text>{item.quantity}</Text>
           </View>
         ))}
+        <Text style={styles.footer}>
+          Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
+          {" //  "}
+          Fecha impresión: {formattedDate}
+        </Text>
       </View>
 
       {/* FOOTER */}
-      <Text style={styles.footer}>
-        Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
-      </Text>
-      <Text style={styles.footer}>Fecha impresión: {formattedDate}</Text>
     </Page>
   );
 };

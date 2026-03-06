@@ -28,16 +28,23 @@ import OrderReceipt from "./OrderReceipt";
 import DraftOrderSearch from "./DraftOrderSearch";
 import ClientForm from "../../pages/modules/Clients/components/ClientForm";
 import api from "../../api/api";
+import OrderConfirmationReceipt from "./OrderConfirmationReceipt";
 import { useOrder } from "./hook/useOrder";
 import { useConfirmOrder } from "./hook/useConfirmOrder";
 import { useClientSearch, type Client } from "./hook/useClientSearch";
 import logo from "../../../public/logo.png";
-import type { UserRole } from "../types/types";
+import type { OrderDraft, UserRole } from "../types/types";
 import type {
   ClientFormData,
   Municipality,
 } from "../../pages/modules/Clients/components/ClientForm.types";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+
+type PaymentData = {
+  cash: number;
+  transfer: number;
+  reference?: string;
+};
 export default function OrderManager({
   currentUser,
 }: {
@@ -76,7 +83,16 @@ export default function OrderManager({
   interface ClientFormState extends ClientFormData {
     municipality?: Municipality;
   }
-
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
+  const [confirmedPayment, setConfirmedPayment] = useState<PaymentData>({
+    cash: 0,
+    transfer: 0,
+    reference: "",
+  });
+  const [confirmedDelivery, setConfirmedDelivery] = useState({
+    address: "",
+    deliveryDate: "",
+  });
   const [clientForm, setClientForm] = useState<ClientFormState>({
     name: "",
     phone: "",
@@ -84,7 +100,8 @@ export default function OrderManager({
     address: "",
     municipality_id: null,
   });
-
+  const [confirmedOrder, setConfirmedOrder] = useState<OrderDraft | null>(null);
+  const confirmationReceiptRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -103,6 +120,12 @@ export default function OrderManager({
     confirmOrder,
   } = useConfirmOrder(order.orderId, () => {
     setOrder((p) => ({ ...p, status: "CONFIRMED" }));
+
+    // esperar un frame para que renderice el receipt
+    setTimeout(() => {
+      exportConfirmationToWhatsApp();
+    }, 300);
+
     clearAll();
   });
 
@@ -225,6 +248,41 @@ export default function OrderManager({
     }
 
     // 4️⃣ Aviso al usuario
+    alert("Imagen copiada. Pegá en WhatsApp con Ctrl+V");
+  };
+
+  const exportConfirmationToWhatsApp = async () => {
+    if (!confirmationReceiptRef.current) return;
+
+    const blob = await htmlToImage.toBlob(confirmationReceiptRef.current, {
+      quality: 0.95,
+      backgroundColor: "#ffffff",
+    });
+
+    if (!blob) return;
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+    } catch {
+      alert("Tu navegador no permite copiar imágenes automáticamente");
+      return;
+    }
+
+    const phone = order.clientPhone?.replace(/\D/g, "");
+
+    if (phone) {
+      const text = `Hola ${order.clientName}, tu pedido fue confirmado. Te comparto el comprobante con los detalles de entrega.`;
+
+      window.open(
+        `https://wa.me/54${phone}?text=${encodeURIComponent(text)}`,
+        "_blank",
+      );
+    }
+
     alert("Imagen copiada. Pegá en WhatsApp con Ctrl+V");
   };
   /* ================= TOTAL VISUAL ================= */
@@ -469,6 +527,19 @@ export default function OrderManager({
         totalAmount={estimatedTotal}
         logoUrl={logo}
       />
+      <Box sx={{ position: "absolute", left: -9999 }}>
+        <OrderConfirmationReceipt
+          ref={confirmationReceiptRef}
+          order={confirmedOrder ?? order}
+          totalAmount={confirmedTotal}
+          logoUrl={logo}
+          address={confirmedDelivery.address}
+          deliveryDate={confirmedDelivery.deliveryDate}
+          cash={confirmedPayment.cash}
+          transfer={confirmedPayment.transfer}
+          reference={confirmedPayment.reference}
+        />
+      </Box>
 
       {/* MODAL CLIENTE */}
       <Dialog
@@ -536,7 +607,26 @@ export default function OrderManager({
         setAddress={setAddress}
         order={order}
         estimatedTotal={estimatedTotal}
-        onConfirm={confirmOrder}
+        onConfirm={async (payment) => {
+          setConfirmedOrder(JSON.parse(JSON.stringify(order)));
+
+          setConfirmedPayment({
+            ...payment,
+            reference: payment.reference ?? "",
+          });
+          setConfirmedTotal(estimatedTotal);
+          setConfirmedDelivery({
+            address: address.delivery_address,
+            deliveryDate: address.delivery_date,
+          });
+
+          await confirmOrder(payment);
+
+          setTimeout(async () => {
+            await exportConfirmationToWhatsApp();
+            clearAll();
+          }, 400);
+        }}
       />
     </Stack>
   );

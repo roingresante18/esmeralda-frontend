@@ -4,10 +4,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Typography,
   Divider,
   Button,
@@ -23,6 +19,12 @@ import type { Address } from "../types/types";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 
+type PaymentData = {
+  cash: number;
+  transfer: number;
+  reference?: string;
+};
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -32,11 +34,7 @@ interface Props {
   setAddress: Dispatch<SetStateAction<Address>>;
   order: any;
   estimatedTotal: number;
-  onConfirm: (paymentData: {
-    cash: number;
-    transfer: number;
-    reference?: string;
-  }) => void;
+  onConfirm: (paymentData: PaymentData) => void;
 }
 
 export default function ConfirmOrderDialog({
@@ -52,14 +50,27 @@ export default function ConfirmOrderDialog({
 }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-
+  const [loading, setLoading] = useState(false);
   const today = new Date().toISOString().split("T")[0];
-
+  useEffect(() => {
+    if (!open) {
+      setPayment({
+        cash: 0,
+        transfer: 0,
+        reference: "",
+      });
+    }
+  }, [open]);
+  useEffect(() => {
+    if (!open) {
+      setConfirmStep("FORM");
+    }
+  }, [open]);
   /* =======================
      PAGOS PARCIALES
   ======================= */
 
-  const [payment, setPayment] = useState({
+  const [payment, setPayment] = useState<PaymentData>({
     cash: 0,
     transfer: 0,
     reference: "",
@@ -72,6 +83,15 @@ export default function ConfirmOrderDialog({
   /* =======================
      PRECARGAR DATOS CLIENTE
   ======================= */
+  useEffect(() => {
+    if (!open) {
+      setPayment({
+        cash: 0,
+        transfer: 0,
+        reference: "",
+      });
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +101,16 @@ export default function ConfirmOrderDialog({
       delivery_address: prev.delivery_address || order?.clientAddress || "",
     }));
   }, [open]);
+  const handleConfirm = async () => {
+    setLoading(true);
 
+    await onConfirm(payment);
+
+    setLoading(false);
+  };
+  /* =======================
+UI
+======================= */
   return (
     <Dialog
       open={open}
@@ -154,7 +183,8 @@ export default function ConfirmOrderDialog({
               <TextField
                 label="Monto en efectivo"
                 type="number"
-                value={payment.cash}
+                value={payment.cash || ""}
+                inputProps={{ min: 0 }}
                 onChange={(e) =>
                   setPayment((prev) => ({
                     ...prev,
@@ -167,7 +197,8 @@ export default function ConfirmOrderDialog({
               <TextField
                 label="Monto en transferencia"
                 type="number"
-                value={payment.transfer}
+                value={payment.transfer || ""}
+                inputProps={{ min: 0 }}
                 onChange={(e) =>
                   setPayment((prev) => ({
                     ...prev,
@@ -267,7 +298,9 @@ export default function ConfirmOrderDialog({
                 <Typography>
                   {i.description} x {i.quantity}
                 </Typography>
-                <Typography>${(i.price * i.quantity).toFixed(2)}</Typography>
+                <Typography>
+                  ${(i.sale_price * i.quantity).toFixed(2)}
+                </Typography>
               </Stack>
             ))}
 
@@ -302,15 +335,10 @@ export default function ConfirmOrderDialog({
             color="success"
             size="large"
             startIcon={<CheckCircleIcon />}
-            onClick={() =>
-              onConfirm({
-                cash: payment.cash,
-                transfer: payment.transfer,
-                reference: payment.reference,
-              })
-            }
+            onClick={handleConfirm}
+            disabled={loading}
           >
-            Confirmar pedido
+            {loading ? "Confirmando..." : "Confirmar pedido"}
           </Button>
         )}
       </DialogActions>
