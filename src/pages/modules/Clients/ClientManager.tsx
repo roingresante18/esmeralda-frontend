@@ -18,7 +18,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import IconButton from "@mui/material/IconButton";
-
+import Chip from "@mui/material/Chip";
 import api from "../../../api/api";
 import ClientForm from "./components/ClientForm";
 import type {
@@ -159,14 +159,16 @@ export default function ClientManager() {
     { field: "email", headerName: "Email", width: 150 },
     { field: "address", headerName: "Direccion", width: 150 },
     {
-      field: "municipalityName",
+      field: "municipality",
       headerName: "Municipio",
       width: 180,
       renderCell: (params) => {
-        const client = params.row as Client;
-        const id = client.municipality_id;
+        const id = Number(params.row.municipality_id);
+        const name = municipalityMap[id];
 
-        return id && municipalityMap[id] ? municipalityMap[id] : "—";
+        if (!name) return "—";
+
+        return <Chip label={name} size="small" />;
       },
     },
     {

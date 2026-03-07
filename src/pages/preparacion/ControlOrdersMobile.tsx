@@ -11,31 +11,40 @@ import {
 } from "@mui/material";
 import api from "../../api/api";
 
+interface Product {
+  description: string;
+}
+
 interface OrderItem {
   quantity: number;
-  product: {
-    description: string;
-  };
+  product: Product;
 }
 
 interface Order {
   id: number;
+  status: string;
   client: {
     name: string;
   };
   items: OrderItem[];
+  created_at: string;
+  delivery_date: string;
   observations?: string;
-  delivery_date?: string;
 }
 
 export default function ControlOrdersMobile() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [checkedItems, setCheckedItems] = useState<number[]>([]);
+
+  const [checkedMap, setCheckedMap] = useState<Record<number, number[]>>({});
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  const touchStartX = useRef<number | null>(null);
+
   const currentOrder = orders[currentIndex];
+
+  const checkedItems = currentOrder ? checkedMap[currentOrder.id] || [] : [];
 
   /* ================= FETCH ================= */
 
@@ -75,6 +84,28 @@ export default function ControlOrdersMobile() {
     return { color: "info", label: delivery.toLocaleDateString("es-AR") };
   };
 
+  /* ================= SWIPE ================= */
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+
+    if (diff > 80 && currentIndex < orders.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+
+    if (diff < -80 && currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    }
+
+    touchStartX.current = null;
+  };
+
   /* ================= TOGGLE ================= */
 
   const toggleItem = (index: number) => {
@@ -82,12 +113,17 @@ export default function ControlOrdersMobile() {
 
     if (navigator.vibrate) navigator.vibrate(40);
 
-    setCheckedItems((prev) => {
-      const updated = prev.includes(index)
-        ? prev.filter((i) => i !== index)
-        : [...prev, index];
+    setCheckedMap((prev) => {
+      const prevItems = prev[currentOrder.id] || [];
 
-      return updated;
+      const updated = prevItems.includes(index)
+        ? prevItems.filter((i) => i !== index)
+        : [...prevItems, index];
+
+      return {
+        ...prev,
+        [currentOrder.id]: updated,
+      };
     });
 
     const next = index + 1;
@@ -115,8 +151,6 @@ export default function ControlOrdersMobile() {
   /* ================= FINALIZAR ================= */
 
   const goNextOrder = () => {
-    setCheckedItems([]);
-
     if (currentIndex + 1 < orders.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -137,7 +171,7 @@ export default function ControlOrdersMobile() {
     setTimeout(goNextOrder, 500);
   };
 
-  /* ================= DEVOLVER A DEPOSITO ================= */
+  /* ================= DEVOLVER ================= */
 
   const sendBackToWarehouse = async () => {
     if (!currentOrder) return;
@@ -151,12 +185,10 @@ export default function ControlOrdersMobile() {
     setTimeout(goNextOrder, 500);
   };
 
-  /* ================= SIN PEDIDOS ================= */
-
   if (!currentOrder) {
     return (
       <Box p={3}>
-        <Typography variant="h6">No hay pedidos para controlar</Typography>
+        <Typography>No hay pedidos para controlar</Typography>
       </Box>
     );
   }
@@ -166,7 +198,27 @@ export default function ControlOrdersMobile() {
   /* ================= UI ================= */
 
   return (
-    <Box p={2}>
+    <Box p={2} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      {/* LISTA PEDIDOS */}
+
+      <Stack
+        direction="row"
+        spacing={1}
+        mb={2}
+        sx={{
+          overflowX: "auto",
+        }}
+      >
+        {orders.map((order, index) => (
+          <Chip
+            key={order.id}
+            label={order.id}
+            color={index === currentIndex ? "primary" : "default"}
+            onClick={() => setCurrentIndex(index)}
+          />
+        ))}
+      </Stack>
+
       {/* HEADER */}
 
       <Card sx={{ p: 2, mb: 2 }}>

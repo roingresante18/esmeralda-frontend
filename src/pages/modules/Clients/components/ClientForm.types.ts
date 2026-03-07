@@ -1,4 +1,5 @@
 export interface ClientFormData {
+  [x: string]: any;
   name: string;
   email?: string;
   phone: string;
