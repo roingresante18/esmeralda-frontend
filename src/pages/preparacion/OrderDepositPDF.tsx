@@ -13,6 +13,11 @@ interface OrderItem {
   quantity: number;
   product: Product;
 }
+type CreatedBy = {
+  id?: number;
+  full_name?: string;
+  email?: string;
+};
 
 interface Order {
   id: number;
@@ -24,6 +29,7 @@ interface Order {
   items: OrderItem[];
   municipality_snapshot: string;
   notes?: string;
+  createdBy?: CreatedBy | null;
 }
 
 interface Props {
@@ -127,8 +133,8 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
         ))}
 
         <Text style={styles.footer}>
-          Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
-          {" // "}
+          Deposito: {loggedUser.full_name || loggedUser.name || "Usuario"}
+          {" // "} Vendedor: {order.createdBy?.full_name} {" // "}
           Fecha impresión: {formattedDate}
         </Text>
       </View>
