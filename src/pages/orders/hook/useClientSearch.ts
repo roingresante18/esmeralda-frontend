@@ -7,7 +7,8 @@ export type Client = {
   phone: string;
   email?: string;
   address?: string;
-
+  latitude?: number | null;
+  longitude?: number | null;
   municipality?: {
     id: number;
     name: string;

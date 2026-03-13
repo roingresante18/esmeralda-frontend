@@ -1,3 +1,351 @@
+// import {
+//   Dialog,
+//   DialogTitle,
+//   DialogContent,
+//   DialogActions,
+//   TextField,
+//   Typography,
+//   Divider,
+//   Button,
+//   Stack,
+//   Box,
+//   useTheme,
+//   useMediaQuery,
+//   Paper,
+// } from "@mui/material";
+// import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+// import ConfirmOrderMap from "./ConfirmOrderMap";
+// import type { Address } from "../types/types";
+// import type { Dispatch, SetStateAction } from "react";
+// import { useEffect, useState } from "react";
+
+// type PaymentData = {
+//   cash: number;
+//   transfer: number;
+//   reference?: string;
+// };
+
+// interface Props {
+//   open: boolean;
+//   onClose: () => void;
+//   confirmStep: "FORM" | "SUMMARY";
+//   setConfirmStep: Dispatch<SetStateAction<"FORM" | "SUMMARY">>;
+//   address: Address;
+//   setAddress: Dispatch<SetStateAction<Address>>;
+//   order: any;
+//   estimatedTotal: number;
+//   onConfirm: (paymentData: PaymentData) => void;
+// }
+
+// export default function ConfirmOrderDialog({
+//   open,
+//   onClose,
+//   confirmStep,
+//   setConfirmStep,
+//   address,
+//   setAddress,
+//   order,
+//   estimatedTotal,
+//   onConfirm,
+// }: Props) {
+//   const theme = useTheme();
+//   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+//   const [loading, setLoading] = useState(false);
+//   const today = new Date().toISOString().split("T")[0];
+//   useEffect(() => {
+//     if (!open) {
+//       setPayment({
+//         cash: 0,
+//         transfer: 0,
+//         reference: "",
+//       });
+//     }
+//   }, [open]);
+//   useEffect(() => {
+//     if (!open) {
+//       setConfirmStep("FORM");
+//     }
+//   }, [open]);
+//   /* =======================
+//      PAGOS PARCIALES
+//   ======================= */
+
+//   const [payment, setPayment] = useState<PaymentData>({
+//     cash: 0,
+//     transfer: 0,
+//     reference: "",
+//   });
+
+//   const totalPaid = payment.cash + payment.transfer;
+//   const remaining = estimatedTotal - totalPaid;
+//   const paymentError = totalPaid > estimatedTotal;
+
+//   /* =======================
+//      PRECARGAR DATOS CLIENTE
+//   ======================= */
+//   useEffect(() => {
+//     if (!open) {
+//       setPayment({
+//         cash: 0,
+//         transfer: 0,
+//         reference: "",
+//       });
+//     }
+//   }, [open]);
+
+//   useEffect(() => {
+//     if (!open) return;
+
+//     setAddress((prev) => ({
+//       ...prev,
+//       delivery_address: prev.delivery_address || order?.clientAddress || "",
+//     }));
+//   }, [open]);
+//   const handleConfirm = async () => {
+//     setLoading(true);
+
+//     await onConfirm(payment);
+
+//     setLoading(false);
+//   };
+//   /* =======================
+// UI
+// ======================= */
+//   return (
+//     <Dialog
+//       open={open}
+//       onClose={onClose}
+//       fullWidth
+//       maxWidth="lg"
+//       fullScreen={isMobile}
+//     >
+//       <DialogTitle fontWeight="bold">
+//         {confirmStep === "FORM" ? "Confirmar pedido" : "Revisar resumen final"}
+//       </DialogTitle>
+
+//       <DialogContent sx={{ p: 0 }}>
+//         {/* ================= FORM ================= */}
+//         {confirmStep === "FORM" && (
+//           <Box
+//             sx={{
+//               display: "grid",
+//               gridTemplateColumns: {
+//                 xs: "1fr",
+//                 md: "1fr 1.2fr",
+//               },
+//               height: {
+//                 xs: "calc(100vh - 140px)",
+//                 md: 520,
+//                 lg: 600,
+//               },
+//             }}
+//           >
+//             {/* ===== FORMULARIO ===== */}
+//             <Stack
+//               spacing={2}
+//               sx={{
+//                 p: 3,
+//                 overflowY: "auto",
+//                 bgcolor: "#fafafa",
+//               }}
+//             >
+//               <TextField
+//                 label="Dirección de entrega"
+//                 fullWidth
+//                 value={address.delivery_address || ""}
+//                 onChange={(e) =>
+//                   setAddress((prev) => ({
+//                     ...prev,
+//                     delivery_address: e.target.value,
+//                   }))
+//                 }
+//               />
+
+//               <TextField
+//                 label="Fecha de entrega"
+//                 type="date"
+//                 InputLabelProps={{ shrink: true }}
+//                 inputProps={{ min: today }}
+//                 fullWidth
+//                 value={address.delivery_date || ""}
+//                 onChange={(e) =>
+//                   setAddress((prev) => ({
+//                     ...prev,
+//                     delivery_date: e.target.value,
+//                   }))
+//                 }
+//               />
+
+//               <Divider sx={{ my: 1 }} />
+
+//               <Typography fontWeight="bold">Pago inicial (opcional)</Typography>
+
+//               <TextField
+//                 label="Monto en efectivo"
+//                 type="number"
+//                 value={payment.cash || ""}
+//                 inputProps={{ min: 0 }}
+//                 onChange={(e) =>
+//                   setPayment((prev) => ({
+//                     ...prev,
+//                     cash: Number(e.target.value) || 0,
+//                   }))
+//                 }
+//                 fullWidth
+//               />
+
+//               <TextField
+//                 label="Monto en transferencia"
+//                 type="number"
+//                 value={payment.transfer || ""}
+//                 inputProps={{ min: 0 }}
+//                 onChange={(e) =>
+//                   setPayment((prev) => ({
+//                     ...prev,
+//                     transfer: Number(e.target.value) || 0,
+//                   }))
+//                 }
+//                 fullWidth
+//               />
+
+//               <TextField
+//                 label="Referencia transferencia (opcional)"
+//                 value={payment.reference}
+//                 onChange={(e) =>
+//                   setPayment((prev) => ({
+//                     ...prev,
+//                     reference: e.target.value,
+//                   }))
+//                 }
+//                 fullWidth
+//               />
+
+//               <Paper sx={{ p: 2, bgcolor: "#fff" }}>
+//                 <Typography>
+//                   Total pedido: ${estimatedTotal.toFixed(2)}
+//                 </Typography>
+//                 <Typography>Pagado ahora: ${totalPaid.toFixed(2)}</Typography>
+//                 <Typography
+//                   color={remaining > 0 ? "warning.main" : "success.main"}
+//                   fontWeight="bold"
+//                 >
+//                   Saldo pendiente: ${remaining.toFixed(2)}
+//                 </Typography>
+
+//                 {paymentError && (
+//                   <Typography color="error">
+//                     El pago no puede superar el total del pedido
+//                   </Typography>
+//                 )}
+//               </Paper>
+//             </Stack>
+
+//             {/* ===== MAPA ===== */}
+//             <Box
+//               sx={{
+//                 position: "relative",
+//                 height: "100%",
+//                 minHeight: 300,
+//                 borderLeft: { md: "1px solid #eee" },
+//               }}
+//             >
+//               <ConfirmOrderMap
+//                 value={{
+//                   lat: address.latitude,
+//                   lng: address.longitude,
+//                 }}
+//                 onChange={({ lat, lng }) =>
+//                   setAddress((prev) => ({
+//                     ...prev,
+//                     latitude: lat,
+//                     longitude: lng,
+//                   }))
+//                 }
+//               />
+//             </Box>
+//           </Box>
+//         )}
+
+//         {/* ================= SUMMARY ================= */}
+//         {confirmStep === "SUMMARY" && (
+//           <Stack spacing={2} sx={{ p: 3 }}>
+//             <Paper sx={{ p: 2 }}>
+//               <Typography>
+//                 <b>Cliente:</b> {order.clientName}
+//               </Typography>
+//               <Typography>
+//                 <b>Dirección:</b> {address.delivery_address}
+//               </Typography>
+//               <Typography>
+//                 <b>Fecha:</b> {address.delivery_date}
+//               </Typography>
+//               <Typography>
+//                 <b>Pagado:</b> ${totalPaid.toFixed(2)}
+//               </Typography>
+//               <Typography>
+//                 <b>Saldo pendiente:</b> ${remaining.toFixed(2)}
+//               </Typography>
+//             </Paper>
+
+//             <Divider />
+
+//             {order.items.map((i: any) => (
+//               <Stack
+//                 key={i.productId}
+//                 direction="row"
+//                 justifyContent="space-between"
+//               >
+//                 <Typography>
+//                   {i.description} x {i.quantity}
+//                 </Typography>
+//                 <Typography>
+//                   ${(i.sale_price * i.quantity).toFixed(2)}
+//                 </Typography>
+//               </Stack>
+//             ))}
+
+//             <Divider />
+
+//             <Typography fontWeight="bold" textAlign="right" fontSize={20}>
+//               Total: ${estimatedTotal.toFixed(2)}
+//             </Typography>
+//           </Stack>
+//         )}
+//       </DialogContent>
+
+//       <DialogActions sx={{ p: 2 }}>
+//         <Button onClick={onClose}>Cancelar</Button>
+
+//         {confirmStep === "FORM" ? (
+//           <Button
+//             variant="contained"
+//             size="large"
+//             onClick={() => setConfirmStep("SUMMARY")}
+//             disabled={
+//               !address.delivery_address ||
+//               !address.delivery_date ||
+//               paymentError
+//             }
+//           >
+//             Revisar resumen
+//           </Button>
+//         ) : (
+//           <Button
+//             variant="contained"
+//             color="success"
+//             size="large"
+//             startIcon={<CheckCircleIcon />}
+//             onClick={handleConfirm}
+//             disabled={loading}
+//           >
+//             {loading ? "Confirmando..." : "Confirmar pedido"}
+//           </Button>
+//         )}
+//       </DialogActions>
+//     </Dialog>
+//   );
+// }
+
 import {
   Dialog,
   DialogTitle,
@@ -35,6 +383,11 @@ interface Props {
   order: any;
   estimatedTotal: number;
   onConfirm: (paymentData: PaymentData) => void;
+  clientLocation?: {
+    lat?: number;
+    lng?: number;
+    address?: string;
+  };
 }
 
 export default function ConfirmOrderDialog({
@@ -47,29 +400,16 @@ export default function ConfirmOrderDialog({
   order,
   estimatedTotal,
   onConfirm,
+  clientLocation,
 }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [loading, setLoading] = useState(false);
   const today = new Date().toISOString().split("T")[0];
-  useEffect(() => {
-    if (!open) {
-      setPayment({
-        cash: 0,
-        transfer: 0,
-        reference: "",
-      });
-    }
-  }, [open]);
-  useEffect(() => {
-    if (!open) {
-      setConfirmStep("FORM");
-    }
-  }, [open]);
+
   /* =======================
      PAGOS PARCIALES
   ======================= */
-
   const [payment, setPayment] = useState<PaymentData>({
     cash: 0,
     transfer: 0,
@@ -81,7 +421,7 @@ export default function ConfirmOrderDialog({
   const paymentError = totalPaid > estimatedTotal;
 
   /* =======================
-     PRECARGAR DATOS CLIENTE
+     RESETEAR PASOS Y PAGOS
   ======================= */
   useEffect(() => {
     if (!open) {
@@ -90,9 +430,13 @@ export default function ConfirmOrderDialog({
         transfer: 0,
         reference: "",
       });
+      setConfirmStep("FORM");
     }
-  }, [open]);
+  }, [open, setConfirmStep]);
 
+  /* =======================
+     PRECARGAR DIRECCIÓN DEL CLIENTE
+  ======================= */
   useEffect(() => {
     if (!open) return;
 
@@ -100,17 +444,47 @@ export default function ConfirmOrderDialog({
       ...prev,
       delivery_address: prev.delivery_address || order?.clientAddress || "",
     }));
-  }, [open]);
+  }, [open, order?.clientAddress, setAddress]);
+
+  /* =======================
+     OPCIÓN B:
+     SI EL CLIENTE YA TIENE GPS,
+     PRECARGARLO EN LA ORDEN
+     SOLO SI LA ORDEN TODAVÍA NO TIENE UNO
+  ======================= */
+  useEffect(() => {
+    if (!open) return;
+
+    if (
+      address.latitude == null &&
+      address.longitude == null &&
+      clientLocation?.lat != null &&
+      clientLocation?.lng != null
+    ) {
+      setAddress((prev) => ({
+        ...prev,
+        latitude: clientLocation.lat,
+        longitude: clientLocation.lng,
+      }));
+    }
+  }, [
+    open,
+    address.latitude,
+    address.longitude,
+    clientLocation?.lat,
+    clientLocation?.lng,
+    setAddress,
+  ]);
+
   const handleConfirm = async () => {
     setLoading(true);
-
     await onConfirm(payment);
-
     setLoading(false);
   };
+
   /* =======================
-UI
-======================= */
+     UI
+  ======================= */
   return (
     <Dialog
       open={open}
@@ -175,6 +549,25 @@ UI
                   }))
                 }
               />
+
+              {/* INFO GPS CLIENTE */}
+              {clientLocation?.lat != null && clientLocation?.lng != null && (
+                <Paper
+                  sx={{
+                    p: 1.5,
+                    bgcolor: "#eef7ff",
+                    borderLeft: "4px solid #1976d2",
+                  }}
+                >
+                  <Typography variant="body2" fontWeight="bold">
+                    📍 Se precargó la ubicación guardada del cliente.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Podés dejarla como está o ajustarla haciendo clic en el
+                    mapa.
+                  </Typography>
+                </Paper>
+              )}
 
               <Divider sx={{ my: 1 }} />
 
@@ -254,6 +647,10 @@ UI
                   lat: address.latitude,
                   lng: address.longitude,
                 }}
+                clientLocation={{
+                  lat: clientLocation?.lat,
+                  lng: clientLocation?.lng,
+                }}
                 onChange={({ lat, lng }) =>
                   setAddress((prev) => ({
                     ...prev,
@@ -284,6 +681,12 @@ UI
               </Typography>
               <Typography>
                 <b>Saldo pendiente:</b> ${remaining.toFixed(2)}
+              </Typography>
+              <Typography>
+                <b>GPS pedido:</b>{" "}
+                {address.latitude != null && address.longitude != null
+                  ? `${address.latitude.toFixed(6)}, ${address.longitude.toFixed(6)}`
+                  : "Sin ubicación seleccionada"}
               </Typography>
             </Paper>
 

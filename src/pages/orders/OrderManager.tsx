@@ -185,11 +185,14 @@ export default function OrderManager({
     selectClient(client);
   };
   const applyClientToOrder = (client: Client) => {
-    setOrder((prev) => ({
+    setOrder((prev: any) => ({
       ...prev,
       clientId: client.id,
       clientName: client.name,
       clientPhone: client.phone,
+      clientAddress: client.address ?? "",
+      clientLatitude: client.latitude ?? undefined,
+      clientLongitude: client.longitude ?? undefined,
       municipality_snapshot: client.municipality?.name ?? "Sin municipio",
     }));
 
@@ -607,6 +610,11 @@ export default function OrderManager({
         setAddress={setAddress}
         order={order}
         estimatedTotal={estimatedTotal}
+        clientLocation={{
+          lat: (order as any).clientLatitude,
+          lng: (order as any).clientLongitude,
+          address: (order as any).clientAddress,
+        }}
         onConfirm={async (payment) => {
           setConfirmedOrder(JSON.parse(JSON.stringify(order)));
 

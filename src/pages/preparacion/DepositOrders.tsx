@@ -23,8 +23,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Paper,
 } from "@mui/material";
-import { formatDateAR, isOnOrAfter, isOnOrBefore } from "../../utils/dateUtils";
+import { isOnOrAfter, isOnOrBefore } from "../../utils/dateUtils";
 import api from "../../api/api";
 import { useNavigate, useLocation } from "react-router-dom";
 import OrderDepositPDF from "./OrderDepositPDF";
@@ -98,6 +99,7 @@ export default function DepositOrders() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousOrdersRef = useRef<Order[]>([]);
+
   const handleBack = () => {
     const from = location.state?.from;
 
@@ -113,6 +115,7 @@ export default function DepositOrders() {
 
     navigate("/dashboard");
   };
+
   /* ============================================================
      FETCH ORDERS
   ============================================================ */
@@ -199,7 +202,7 @@ export default function DepositOrders() {
   }, [orders]);
 
   /* ============================================================
-     FILTER - Solo estados del depósito
+     FILTER
   ============================================================ */
 
   const filteredOrders = useMemo(() => {
@@ -286,7 +289,6 @@ export default function DepositOrders() {
 
   /* ============================================================
      GENERAR PDF
-     - Se imprime en el mismo orden visible de la grilla
   ============================================================ */
 
   const generatePDF = async () => {
@@ -295,7 +297,6 @@ export default function DepositOrders() {
     setIsPrinting(true);
 
     const selectedIds = selectionModel.ids;
-
     const ordersToPrint = filteredOrders.filter((o) => selectedIds.has(o.id));
 
     const doc = (
@@ -528,96 +529,169 @@ export default function DepositOrders() {
   ============================================================ */
 
   return (
-    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
-      <Stack
-        direction={isMobile ? "column" : "row"}
-        justifyContent="space-between"
-        alignItems={isMobile ? "flex-start" : "center"}
-        spacing={2}
-        mb={3}
+    <Container
+      maxWidth="xl"
+      sx={{
+        py: { xs: 1.5, md: 2 },
+      }}
+    >
+      {/* HEADER FIJO EN 3 FILAS */}
+      <Paper
+        elevation={3}
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          mb: 2,
+          p: 1.5,
+          borderRadius: 2,
+          backgroundColor: "background.paper",
+        }}
       >
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
+        {/* FILA 1 */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr auto auto" },
+            gap: 1.5,
+            alignItems: "center",
+            mb: 1.2,
+          }}
+        >
+          <Typography variant="h5" fontWeight="bold" sx={{ lineHeight: 1.1 }}>
             Depósito
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
+
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              justifySelf: { xs: "start", md: "end" },
+              whiteSpace: "nowrap",
+            }}
+          >
             Usuario: {loggedUser?.full_name || "Usuario"}
           </Typography>
+
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleBack}
+            sx={{ minWidth: 110 }}
+          >
+            ← Volver
+          </Button>
         </Box>
 
-        <Button variant="outlined" onClick={handleBack}>
-          ← Volver
-        </Button>
-      </Stack>
-
-      {/* FILTROS */}
-      <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2}>
-        <TextField
-          select
-          size="small"
-          fullWidth
-          label="Estado"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          SelectProps={{ native: true }}
+        {/* FILA 2 */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "repeat(5, 1fr)" },
+            gap: 1,
+            mb: 1.2,
+          }}
         >
-          <option value="ALL">Todos</option>
-          <option value="CONFIRMED">Confirmado</option>
-          <option value="PREPARING">Preparando</option>
-          <option value="PREPARED">Preparado</option>
-        </TextField>
-
-        <TextField
-          type="date"
-          size="small"
-          fullWidth
-          label="Inicio reparto"
-          value={filterDateFrom}
-          onChange={(e) => setFilterDateFrom(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
-
-        <TextField
-          type="date"
-          size="small"
-          fullWidth
-          label="Fin reparto"
-          value={filterDateTo}
-          onChange={(e) => setFilterDateTo(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
-      </Stack>
-
-      <Stack direction={isMobile ? "column" : "row"} spacing={2} mb={2}>
-        <FormControl fullWidth size="small">
-          <InputLabel>Municipio</InputLabel>
-          <Select
-            value={filterMunicipality}
-            label="Municipio"
-            onChange={(e) => setFilterMunicipality(e.target.value)}
+          <TextField
+            select
+            size="small"
+            fullWidth
+            label="Estado"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            SelectProps={{ native: true }}
           >
-            <MenuItem value="ALL">Todos</MenuItem>
-            {municipalityOptions.map((m) => (
-              <MenuItem key={m} value={m}>
-                {m}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            <option value="ALL">Todos</option>
+            <option value="CONFIRMED">Confirmado</option>
+            <option value="PREPARING">Preparando</option>
+            <option value="PREPARED">Preparado</option>
+          </TextField>
 
-        <TextField
-          size="small"
-          fullWidth
-          label="Buscar por cliente, teléfono, pedido u observación"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </Stack>
+          <TextField
+            type="date"
+            size="small"
+            fullWidth
+            label="Inicio reparto"
+            value={filterDateFrom}
+            onChange={(e) => setFilterDateFrom(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
 
-      <Typography mb={1}>
-        Confirmados: {totalConfirmed} | Preparando: {totalPreparing} |
-        Preparados: {totalPrepared}
-      </Typography>
+          <TextField
+            type="date"
+            size="small"
+            fullWidth
+            label="Fin reparto"
+            value={filterDateTo}
+            onChange={(e) => setFilterDateTo(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+
+          <FormControl fullWidth size="small">
+            <InputLabel>Municipio</InputLabel>
+            <Select
+              value={filterMunicipality}
+              label="Municipio"
+              onChange={(e) => setFilterMunicipality(e.target.value)}
+            >
+              <MenuItem value="ALL">Todos</MenuItem>
+              {municipalityOptions.map((m) => (
+                <MenuItem key={m} value={m}>
+                  {m}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            fullWidth
+            label="Buscar"
+            placeholder="Cliente, teléfono, pedido u observación"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </Box>
+
+        {/* FILA 3 */}
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          flexWrap="wrap"
+          alignItems="center"
+        >
+          <Chip
+            label={`Confirmados: ${totalConfirmed}`}
+            size="small"
+            sx={{
+              backgroundColor: "#e3f2fd",
+              color: "#0d47a1",
+              fontWeight: 700,
+            }}
+          />
+
+          <Chip
+            label={`Preparando: ${totalPreparing}`}
+            size="small"
+            sx={{
+              backgroundColor: "#fff3e0",
+              color: "#e65100",
+              fontWeight: 700,
+            }}
+          />
+
+          <Chip
+            label={`Preparados: ${totalPrepared}`}
+            size="small"
+            sx={{
+              backgroundColor: "#e8f5e9",
+              color: "#1b5e20",
+              fontWeight: 700,
+            }}
+          />
+        </Stack>
+      </Paper>
 
       {/* TABLA */}
       <Box
