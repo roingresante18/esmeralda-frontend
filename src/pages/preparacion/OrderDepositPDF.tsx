@@ -18,13 +18,12 @@ interface Order {
   id: number;
   client: {
     name: string;
-
     phone: string;
     address: string;
   };
   items: OrderItem[];
   municipality_snapshot: string;
-  observations?: string;
+  notes?: string;
 }
 
 interface Props {
@@ -48,6 +47,10 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 12,
   },
+  infoText: {
+    marginBottom: 4,
+    lineHeight: 1.4,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -60,6 +63,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     borderBottom: "2px solid #000",
     marginBottom: 4,
+    paddingBottom: 4,
+  },
+  productText: {
+    width: "80%",
+    paddingRight: 8,
+  },
+  quantityText: {
+    width: "20%",
+    textAlign: "right",
   },
   footer: {
     marginTop: 20,
@@ -73,10 +85,8 @@ const styles = StyleSheet.create({
 ============================================================ */
 
 const OrderDepositPDF: FC<Props> = ({ order }) => {
-  // 👤 Usuario logueado
   const loggedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  // 📅 Fecha actual con día y hora
   const now = new Date();
   const formattedDate = now.toLocaleString("es-AR", {
     weekday: "long",
@@ -89,40 +99,39 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
 
   return (
     <Page size="A4" style={styles.page}>
-      {/* TÍTULO */}
       <Text style={styles.title}>Pedido #{order.id}</Text>
 
-      {/* INFO GENERAL */}
       <View style={styles.section}>
-        <Text>
-          Cliente: {order.client.name} {" // "} {order.client.phone} {" // "}{" "}
+        <Text style={styles.infoText}>
+          Cliente: {order.client.name} {" // "} {order.client.phone} {" // "}
           Dirección: {order.client.address} {" // "} Localidad:{" "}
           {order.municipality_snapshot}
         </Text>
-        <Text>Observaciones: {order.observations}</Text>
+
+        <Text style={styles.infoText}>
+          Observaciones: {order.notes?.trim() || "Sin observaciones"}
+        </Text>
       </View>
 
-      {/* TABLA PRODUCTOS */}
       <View style={styles.section}>
         <View style={styles.headerRow}>
-          <Text>Producto</Text>
-          <Text>Cantidad</Text>
+          <Text style={styles.productText}>Producto</Text>
+          <Text style={styles.quantityText}>Cantidad</Text>
         </View>
 
         {order.items.map((item, idx) => (
           <View key={idx} style={styles.row}>
-            <Text>{item.product.description}</Text>
-            <Text>{item.quantity}</Text>
+            <Text style={styles.productText}>{item.product.description}</Text>
+            <Text style={styles.quantityText}>{item.quantity}</Text>
           </View>
         ))}
+
         <Text style={styles.footer}>
           Usuario: {loggedUser.full_name || loggedUser.name || "Usuario"}
-          {" //  "}
+          {" // "}
           Fecha impresión: {formattedDate}
         </Text>
       </View>
-
-      {/* FOOTER */}
     </Page>
   );
 };

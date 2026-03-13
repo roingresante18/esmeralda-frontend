@@ -131,9 +131,13 @@ const AdminPanel: React.FC = () => {
         {/* GRID DASHBOARD */}
         <Grid container spacing={4}>
           {actions.map((action, index) => (
-            <Grid key={index}>
+            <Grid key={index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
               <Paper
-                onClick={() => navigate(action.path)}
+                onClick={() =>
+                  navigate(action.path, {
+                    state: { from: "/admin" },
+                  })
+                }
                 elevation={0}
                 sx={{
                   p: 4,

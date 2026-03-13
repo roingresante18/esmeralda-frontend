@@ -1,4 +1,5 @@
 export interface ClientFormData {
+  id?: number; // ← IMPORTANTE
   [x: string]: any;
   name: string;
   email?: string;
