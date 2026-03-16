@@ -18,7 +18,7 @@ import ProductsManager from "./pages/modules/products/ProductsManager";
 
 // import StockManager from "./pages/admin/StockManager";
 import StockManager from "./pages/admin/StockManager";
-
+import BusinessDashboard from "./pages/BusinessDashboard";
 import Profile from "./pages/Profile";
 import UserManager from "./pages/admin/UserManager";
 import ControlOrders from "./pages/preparacion/ControlOrders";
@@ -166,6 +166,14 @@ function App() {
             element={
               <ProtectedRoute roles={["ADMIN", "LOGISTICA", "REPARTIDOR"]}>
                 <DriverOrders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <BusinessDashboard />
               </ProtectedRoute>
             }
           />

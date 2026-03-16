@@ -10,14 +10,17 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-import PeopleIcon from "@mui/icons-material/People";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import WarehouseIcon from "@mui/icons-material/Warehouse";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import PersonIcon from "@mui/icons-material/Person";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import MoveToInboxIcon from "@mui/icons-material/MoveToInbox";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
+import RouteIcon from "@mui/icons-material/Route";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import GroupsIcon from "@mui/icons-material/Groups";
+import AnalyticsIcon from "@mui/icons-material/Analytics";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -46,10 +49,9 @@ const AdminPanel: React.FC = () => {
       path: "/orders",
       description: "Ver y administrar pedidos",
     },
-
     {
       title: "Depósito",
-      icon: <Inventory2Icon fontSize="large" />,
+      icon: <MoveToInboxIcon fontSize="large" />,
       color: theme.palette.success.dark,
       path: "/deposito",
       description: "Gestión de preparación de pedidos",
@@ -63,7 +65,7 @@ const AdminPanel: React.FC = () => {
     },
     {
       title: "Logística",
-      icon: <LocalShippingIcon fontSize="large" />,
+      icon: <RouteIcon fontSize="large" />,
       color: theme.palette.secondary.dark,
       path: "/logistica",
       description: "Organización de entregas",
@@ -71,20 +73,27 @@ const AdminPanel: React.FC = () => {
     {
       title: "Reparto",
       icon: <LocalShippingIcon fontSize="large" />,
-      color: theme.palette.secondary.dark,
+      color: theme.palette.primary.dark,
       path: "/reparto",
-      description: "Distribucion de Pedidos",
+      description: "Distribución de pedidos",
     },
     {
       title: "Clientes",
-      icon: <PersonIcon fontSize="large" />,
+      icon: <GroupsIcon fontSize="large" />,
       color: theme.palette.warning.main,
       path: "/clients",
       description: "Registrar y gestionar clientes",
     },
     {
+      title: "Informes",
+      icon: <AnalyticsIcon fontSize="large" />,
+      color: theme.palette.warning.dark,
+      path: "/analytics",
+      description: "Resumen comercial, operativo y financiero",
+    },
+    {
       title: "Usuarios",
-      icon: <PeopleIcon fontSize="large" />,
+      icon: <AdminPanelSettingsIcon fontSize="large" />,
       color: theme.palette.primary.main,
       path: "/users",
       description: "Gestionar usuarios",
@@ -164,7 +173,7 @@ const AdminPanel: React.FC = () => {
                     sx={{
                       width: 60,
                       height: 60,
-                      borderRadius: 3,
+                      borderRadius: "50%",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
