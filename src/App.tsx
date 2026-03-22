@@ -13,10 +13,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OrderManager from "./pages/orders/OrderManager";
 import ClientManager from "./pages/modules/Clients/ClientManager";
-// import ProductsManager from "./pages/admin/ProductsManager";
-import ProductsManager from "./pages/modules/products/ProductsManager";
-
-// import StockManager from "./pages/admin/StockManager";
+import ProductsManager from "./pages/admin/ProductsManager";
 import StockManager from "./pages/admin/StockManager";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import Profile from "./pages/Profile";
@@ -27,6 +24,7 @@ import LogisticsOrders from "./pages/preparacion/LogisticsOrders";
 import OrdersDashboard from "./pages/orders/OrdersDashboard";
 import DriverOrders from "./pages/DriverOrders/DriverOrders";
 import ControlOrdersMobile from "./pages/preparacion/ControlOrdersMobile";
+import ProductsAlertsDashboard from "./pages/admin/ProductsAlertsDashboard";
 function App() {
   return (
     <AuthProvider>
@@ -174,6 +172,15 @@ function App() {
             element={
               <ProtectedRoute roles={["ADMIN"]}>
                 <BusinessDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/product-alerts"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <ProductsAlertsDashboard />
               </ProtectedRoute>
             }
           />

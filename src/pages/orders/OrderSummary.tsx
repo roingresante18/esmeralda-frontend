@@ -38,33 +38,29 @@ export default function OrderSummary({
   return (
     <Stack spacing={2}>
       <Divider />
-
+      <Typography variant="h6" fontWeight="bold">
+        Total: ${total.toLocaleString("en-ES")}
+      </Typography>
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", md: "center" }}
-        spacing={2}
+        spacing={1}
       >
-        <Typography variant="h6" fontWeight="bold">
-          Total: ${total.toLocaleString("en-ES")}
-        </Typography>
-
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={0.5}>
           <Button variant="outlined" onClick={onExport} disabled={!saved}>
             Exportar JPG
           </Button>
-
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleSave}
-            disabled={saving || disabled}
-          >
-            {saving ? "Guardando..." : "Guardar pedido"}
-          </Button>
         </Stack>
       </Stack>
-
+      <Button
+        variant="contained"
+        color="success"
+        onClick={handleSave}
+        disabled={saving || disabled}
+      >
+        {saving ? "Guardando..." : "Guardar pedido"}
+      </Button>
       {saved && (
         <Alert severity="success">
           Pedido guardado con éxito. Ya podés exportarlo o enviarlo al cliente.

@@ -13,6 +13,7 @@ import {
   Collapse,
   IconButton,
   Box,
+  Chip,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PersonIcon from "@mui/icons-material/Person";
@@ -29,7 +30,7 @@ import DraftOrderSearch from "./DraftOrderSearch";
 import ClientForm from "../../pages/modules/Clients/components/ClientForm";
 import api from "../../api/api";
 import OrderConfirmationReceipt from "./OrderConfirmationReceipt";
-import { useOrder } from "./hook/useOrder";
+import { useOrder, type DraftOrderApi } from "./hook/useOrder";
 import { useConfirmOrder } from "./hook/useConfirmOrder";
 import { useClientSearch, type Client } from "./hook/useClientSearch";
 import logo from "../../../public/logo.png";
@@ -45,6 +46,63 @@ type PaymentData = {
   transfer: number;
   reference?: string;
 };
+
+const formatOrderDate = (date?: string) => {
+  if (!date) return "Sin fecha";
+
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+
+  return d.toLocaleDateString("es-AR");
+};
+
+const getStatusLabel = (status?: string) => {
+  switch (status) {
+    case "CONFIRMED":
+      return "Confirmado";
+    case "QUOTATION":
+      return "Cotización";
+    case "CANCELLED":
+      return "Cancelado";
+    case "PREPARING":
+      return "Preparando";
+    case "PREPARED":
+      return "Preparado";
+    case "QUALITY_CHECKED":
+      return "Controlado";
+    case "ASSIGNED":
+      return "Asignado";
+    case "IN_DELIVERY":
+      return "En reparto";
+    case "DELIVERED":
+      return "Entregado";
+    default:
+      return status || "Sin estado";
+  }
+};
+
+const getStatusColor = (
+  status?: string,
+): "success" | "warning" | "error" | "info" | "default" => {
+  switch (status) {
+    case "CONFIRMED":
+    case "DELIVERED":
+      return "success";
+    case "QUOTATION":
+    case "PREPARING":
+    case "PREPARED":
+      return "warning";
+    case "CANCELLED":
+      return "error";
+    case "QUALITY_CHECKED":
+    case "ASSIGNED":
+    case "IN_DELIVERY":
+      return "info";
+    default:
+      return "default";
+  }
+};
+
 export default function OrderManager({
   currentUser,
 }: {
@@ -69,6 +127,7 @@ export default function OrderManager({
     await saveOrder();
     setHasUnsavedChanges(false);
   };
+
   const {
     clientQuery,
     setClientQuery,
@@ -76,13 +135,14 @@ export default function OrderManager({
     selectClient,
     clearResults,
   } = useClientSearch();
+
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [confirmStep, setConfirmStep] = useState<"FORM" | "SUMMARY">("FORM");
 
-  //prueba de capturar municipalidad del cliente
   interface ClientFormState extends ClientFormData {
     municipality?: Municipality;
   }
+
   const [confirmedTotal, setConfirmedTotal] = useState(0);
   const [confirmedPayment, setConfirmedPayment] = useState<PaymentData>({
     cash: 0,
@@ -106,11 +166,15 @@ export default function OrderManager({
   const [clientSectionOpen, setClientSectionOpen] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [clientOrders, setClientOrders] = useState<DraftOrderApi[]>([]);
+  const [loadingClientOrders, setLoadingClientOrders] = useState(false);
+
   useEffect(() => {
     if (order.orderId) {
       setHasUnsavedChanges(true);
     }
   }, [order.items]);
+
   /* ================= CONFIRM ORDER ================= */
   const {
     open: confirmOpen,
@@ -121,13 +185,48 @@ export default function OrderManager({
   } = useConfirmOrder(order.orderId, () => {
     setOrder((p) => ({ ...p, status: "CONFIRMED" }));
 
-    // esperar un frame para que renderice el receipt
     setTimeout(() => {
       exportConfirmationToWhatsApp();
     }, 300);
 
     clearAll();
   });
+
+  /* ================= CLIENT ORDERS ================= */
+  const fetchClientOrders = async (clientId: number) => {
+    try {
+      setLoadingClientOrders(true);
+
+      const res = await api.get(`/orders/by-client/${clientId}`);
+
+      const orders: DraftOrderApi[] = Array.isArray(res.data) ? res.data : [];
+
+      const sortedOrders = [...orders].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+      setClientOrders(sortedOrders);
+    } catch (error) {
+      console.error("Error al cargar pedidos del cliente", error);
+      setClientOrders([]);
+    } finally {
+      setLoadingClientOrders(false);
+    }
+  };
+
+  const handleLoadClientOrder = (selectedOrder: DraftOrderApi) => {
+    loadDraftOrder(selectedOrder);
+    setHasUnsavedChanges(false);
+  };
+
+  useEffect(() => {
+    if (order.clientId) {
+      fetchClientOrders(order.clientId);
+    } else {
+      setClientOrders([]);
+    }
+  }, [order.clientId]);
 
   /* ================= LIMPIAR TODO ================= */
   const clearAll = () => {
@@ -147,6 +246,7 @@ export default function OrderManager({
     setClientQuery("");
     clearResults();
     setClientModalOpen(false);
+    setClientOrders([]);
 
     setAddress({
       delivery_address: "",
@@ -164,6 +264,7 @@ export default function OrderManager({
     setConfirmOpen(false);
     setConfirmStep("FORM");
   };
+
   /* ================= DESCUENTO VISUAL ================= */
   const updateDiscount = (productId: number, value: number) => {
     setOrder((prev) => ({
@@ -180,10 +281,12 @@ export default function OrderManager({
 
   /* ================= SELECCIÓN DE CLIENTE ================= */
   const handleSelectClient = (client: Client) => {
-    console.log(client); // 👈 DEBUG
+    console.log(client);
     applyClientToOrder(client);
     selectClient(client);
+    fetchClientOrders(client.id);
   };
+
   const applyClientToOrder = (client: Client) => {
     setOrder((prev: any) => ({
       ...prev,
@@ -198,7 +301,8 @@ export default function OrderManager({
 
     setHasUnsavedChanges(true);
   };
-  const clearClient = () =>
+
+  const clearClient = () => {
     setOrder((p) => ({
       ...p,
       clientId: undefined,
@@ -206,19 +310,22 @@ export default function OrderManager({
       clientPhone: "",
       municipality_snapshot: "",
     }));
+    setClientOrders([]);
+  };
 
   const submitClient = async () => {
     const res = await api.post("/clients", clientForm);
     applyClientToOrder(res.data);
     setClientModalOpen(false);
+    fetchClientOrders(res.data.id);
   };
 
   /* ================= RECEIPT COPY + WHATSAPP ================= */
   const receiptRef = useRef<HTMLDivElement>(null);
+
   const exportToWhatsApp = async () => {
     if (!receiptRef.current) return;
 
-    // 1️⃣ Generar imagen como Blob
     const blob = await htmlToImage.toBlob(receiptRef.current, {
       quality: 0.95,
       backgroundColor: "#ffffff",
@@ -226,7 +333,6 @@ export default function OrderManager({
 
     if (!blob) return;
 
-    // 2️⃣ Copiar al portapapeles como imagen
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -238,7 +344,6 @@ export default function OrderManager({
       return;
     }
 
-    // 3️⃣ Abrir WhatsApp Web con mensaje
     const phone = order.clientPhone?.replace(/\D/g, "");
 
     if (phone) {
@@ -250,7 +355,6 @@ export default function OrderManager({
       );
     }
 
-    // 4️⃣ Aviso al usuario
     alert("Imagen copiada. Pegá en WhatsApp con Ctrl+V");
   };
 
@@ -288,6 +392,7 @@ export default function OrderManager({
 
     alert("Imagen copiada. Pegá en WhatsApp con Ctrl+V");
   };
+
   /* ================= TOTAL VISUAL ================= */
   const estimatedTotal = useMemo(() => {
     return order.items.reduce((sum, item) => {
@@ -297,240 +402,681 @@ export default function OrderManager({
     }, 0);
   }, [order.items]);
 
-  /* ================= UI ================= */
-  return (
-    <Stack spacing={2} sx={{ p: { xs: 2, md: 4 } }}>
-      {/* Botón volver */}
-      <Button
-        sx={{
-          position: "fixed",
-          bottom: 16,
-          right: 16,
-          borderRadius: 50,
-          zIndex: 1300,
-        }}
-        variant="contained"
-        onClick={() => navigate(-1)}
-      >
-        ← Volver
-      </Button>
+  const panelSx = {
+    display: "flex",
+    borderRadius: 4,
+    overflow: "hidden",
+    boxShadow: 3,
+    bgcolor: "background.paper",
+  };
 
-      {/* Título */}
-      <Typography variant="h4" fontWeight="bold" textAlign="center" mb={2}>
-        Administrar Pedido
+  const renderClientOrdersList = () => (
+    <Box mt={2}>
+      <Typography fontWeight="bold" variant="subtitle2" mb={1}>
+        Pedidos del cliente
       </Typography>
 
-      {/* Botones Limpiar / Ver pedidos */}
-      <Stack direction="row" justifyContent="center" mb={2} spacing={2}>
-        <Button
-          variant="outlined"
-          color="error"
-          onClick={() => {
-            if (window.confirm("¿Desea borrar el pedido actual?")) clearAll();
-          }}
-          sx={{ borderRadius: 3 }}
+      {loadingClientOrders ? (
+        <Typography variant="body2" color="text.secondary">
+          Cargando pedidos...
+        </Typography>
+      ) : clientOrders.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          Este cliente no tiene pedidos registrados.
+        </Typography>
+      ) : (
+        <Stack spacing={1}>
+          {clientOrders.map((clientOrder) => (
+            <Paper
+              key={clientOrder.id}
+              onClick={() => handleLoadClientOrder(clientOrder)}
+              sx={{
+                p: 1.5,
+                borderRadius: 2.5,
+                cursor: "pointer",
+                border: "1px solid",
+                borderColor:
+                  order.orderId === clientOrder.id ? "primary.main" : "divider",
+                bgcolor:
+                  order.orderId === clientOrder.id
+                    ? "rgba(25, 118, 210, 0.06)"
+                    : "#fff",
+                transition: "0.2s",
+                "&:hover": {
+                  bgcolor: "#f8fafc",
+                },
+              }}
+            >
+              <Stack spacing={0.5}>
+                <Typography fontWeight="bold" variant="body2">
+                  Pedido #{clientOrder.id}
+                </Typography>
+
+                <Typography variant="caption" color="text.secondary">
+                  Fecha: {formatOrderDate(clientOrder.created_at)}
+                </Typography>
+
+                <Box>
+                  <Chip
+                    size="small"
+                    label={getStatusLabel(clientOrder.status)}
+                    color={getStatusColor(clientOrder.status)}
+                  />
+                </Box>
+              </Stack>
+            </Paper>
+          ))}
+        </Stack>
+      )}
+    </Box>
+  );
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#fbfbfb",
+      }}
+    >
+      <Box
+        sx={{
+          p: { xs: 2, md: 0.1 },
+          pb: { xs: 2, md: 0.1 },
+        }}
+      >
+        <Stack
+          direction="row"
+          justifyContent="center"
+          alignItems="center"
+          spacing={2}
+          mb={1}
+          flexWrap="wrap"
         >
-          🗑️ Nuevo pedido / Limpiar todo
-        </Button>
-        <Button
-          variant="contained"
-          color="info"
-          onClick={() => navigate("/ordersCompletos")}
-          sx={{ borderRadius: 3 }}
-        >
-          📋 Ver pedidos
-        </Button>
-      </Stack>
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            textAlign="center"
+            sx={{ mr: 2 }}
+          >
+            Panel de Ventas
+          </Typography>
 
-      {/* CLIENTE */}
-      <Paper
-        sx={{
-          display: "flex",
-          borderRadius: 3,
-          overflow: "hidden",
-          boxShadow: 4,
-        }}
-      >
-        <Box sx={{ width: 6, bgcolor: "info.main" }} />
-        <Box sx={{ flex: 1, p: 2 }}>
-          <Stack direction="row" justifyContent="space-between">
-            <Stack direction="row" spacing={1} alignItems="center">
-              <PersonIcon color="info" />
-              <Typography fontWeight="bold" variant="h6">
-                Cliente
-              </Typography>
-            </Stack>
-            <IconButton onClick={() => setClientSectionOpen((p) => !p)}>
-              <ExpandMoreIcon
-                sx={{
-                  transform: clientSectionOpen
-                    ? "rotate(180deg)"
-                    : "rotate(0deg)",
-                  transition: "0.3s",
-                }}
-              />
-            </IconButton>
-          </Stack>
-
-          <Collapse in={clientSectionOpen}>
-            <Divider sx={{ my: 1 }} />
-            {!order.clientId ? (
-              <>
-                <TextField
-                  label="Buscar cliente"
-                  fullWidth
-                  value={clientQuery}
-                  onChange={(e) => setClientQuery(e.target.value)}
-                />
-                <Stack spacing={1} mt={1}>
-                  {clientsFound.map((c) => (
-                    <Paper
-                      key={c.id}
-                      sx={{
-                        p: 1.5,
-                        cursor: "pointer",
-                        "&:hover": { bgcolor: "#f5f5f5" },
-                      }}
-                      onClick={() => handleSelectClient(c)}
-                    >
-                      <Typography fontWeight="bold">{c.name}</Typography>
-                      <Typography variant="body2">{c.phone}</Typography>
-                    </Paper>
-                  ))}
-                </Stack>
-
-                <Button
-                  sx={{ mt: 1 }}
-                  variant="outlined"
-                  onClick={() => setClientModalOpen(true)}
-                >
-                  + Nuevo cliente
-                </Button>
-
-                {!order.clientId && (
-                  <DraftOrderSearch onSelect={loadDraftOrder} />
-                )}
-              </>
-            ) : (
-              <Paper sx={{ p: 2, bgcolor: "#f5f5f5", borderRadius: 2 }}>
-                <Typography fontWeight="bold" variant="h6">
-                  {order.clientName}
-                </Typography>
-                <Typography variant="body2" mb={1}>
-                  {order.clientPhone}
-                </Typography>
-                <Typography variant="body2" mb={1}>
-                  {order.municipality_snapshot || "—"}
-                </Typography>
-                <Button size="small" variant="outlined" onClick={clearClient}>
-                  Cambiar cliente
-                </Button>
-              </Paper>
-            )}
-          </Collapse>
-        </Box>
-      </Paper>
-
-      {/* PRODUCTOS */}
-      <Paper
-        sx={{
-          display: "flex",
-          borderRadius: 3,
-          overflow: "hidden",
-          boxShadow: 4,
-        }}
-      >
-        <Box sx={{ width: 6, bgcolor: "warning.main" }} />
-        <Box sx={{ flex: 1, p: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-            <ShoppingCartIcon color="primary" />
-            <Typography fontWeight="bold" variant="h6">
-              Productos
-            </Typography>
-          </Stack>
-
-          <OrderProductPicker onAdd={addProduct} />
-          <OrderCart
-            items={order.items}
-            onUpdateQuantity={updateQuantity}
-            onUpdateDiscount={updateDiscount}
-            onRemove={removeProduct}
-            readonly={!canEdit}
-          />
-        </Box>
-      </Paper>
-
-      {/* RESUMEN */}
-      <Paper
-        sx={{
-          display: "flex",
-          borderRadius: 3,
-          overflow: "hidden",
-          boxShadow: 4,
-        }}
-      >
-        <Box sx={{ width: 6, bgcolor: "success.main" }} />
-        <Box sx={{ flex: 1, p: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-            <ReceiptIcon color="success" />
-            <Typography fontWeight="bold" variant="h6">
-              Resumen
-            </Typography>
-          </Stack>
-
-          <TextField
-            label="Observaciones"
-            placeholder="Agregar detalles adicionales del pedido..."
-            multiline
-            minRows={3}
-            fullWidth
-            value={order.notes || ""}
-            onChange={(e) => {
-              setOrder((prev) => ({ ...prev, notes: e.target.value }));
-              setHasUnsavedChanges(true);
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => {
+              if (window.confirm("¿Desea borrar el pedido actual?")) clearAll();
             }}
-            disabled={!canEdit}
-            sx={{ mt: 3, "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-          />
+            sx={{ borderRadius: 3, minWidth: 220 }}
+          >
+            🗑️ Nuevo pedido / Limpiar todo
+          </Button>
 
-          <OrderSummary
-            total={estimatedTotal}
-            onSave={handleSaveOrder}
-            onExport={exportToWhatsApp}
-            disabled={!canEdit}
-          />
-          {hasUnsavedChanges && (
-            <Typography color="warning.main" fontSize={13} mt={1}>
-              ⚠️ Cambios sin guardar
-            </Typography>
-          )}
           <Button
             variant="contained"
-            color="success"
-            fullWidth
-            sx={{ mt: 2, borderRadius: 3 }}
-            disabled={!order.orderId || order.status !== "QUOTATION"}
-            onClick={() => {
-              if (hasUnsavedChanges) {
-                setUnsavedDialogOpen(true);
-              } else {
-                setConfirmOpen(true);
-              }
+            color="info"
+            onClick={() => navigate("/ordersCompletos")}
+            sx={{ borderRadius: 3, minWidth: 180 }}
+          >
+            📋 Ver pedidos
+          </Button>
+
+          <Button
+            variant="contained"
+            onClick={() => navigate(-1)}
+            sx={{
+              borderRadius: 50,
+              minWidth: 140,
+              bgcolor: "#28b42d",
+              "&:hover": {
+                bgcolor: "#239927",
+              },
             }}
           >
-            Confirmar pedido
+            ← Volver
           </Button>
-        </Box>
-      </Paper>
+        </Stack>
 
-      {/* RECEIPT */}
+        {/* MOBILE / TABLET */}
+        <Box sx={{ display: { xs: "block", lg: "none" } }}>
+          <Stack spacing={2}>
+            {/* CLIENTE */}
+            <Paper sx={panelSx}>
+              <Box sx={{ width: 6, bgcolor: "info.main" }} />
+              <Box sx={{ flex: 1, p: 1 }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <PersonIcon color="info" />
+                    <Typography fontWeight="bold" variant="h6">
+                      Cliente
+                    </Typography>
+                  </Stack>
+
+                  <IconButton onClick={() => setClientSectionOpen((p) => !p)}>
+                    <ExpandMoreIcon
+                      sx={{
+                        transform: clientSectionOpen
+                          ? "rotate(180deg)"
+                          : "rotate(0deg)",
+                        transition: "0.3s",
+                      }}
+                    />
+                  </IconButton>
+                </Stack>
+
+                <Collapse in={clientSectionOpen}>
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {!order.clientId ? (
+                    <>
+                      <TextField
+                        label="Buscar cliente"
+                        fullWidth
+                        value={clientQuery}
+                        onChange={(e) => setClientQuery(e.target.value)}
+                      />
+
+                      <Stack spacing={1} mt={1.5}>
+                        {clientsFound.map((c) => (
+                          <Paper
+                            key={c.id}
+                            sx={{
+                              p: 1.5,
+                              cursor: "pointer",
+                              borderRadius: 2.5,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              boxShadow: 0,
+                              "&:hover": { bgcolor: "#f8fafc" },
+                            }}
+                            onClick={() => handleSelectClient(c)}
+                          >
+                            <Typography fontWeight="bold">{c.name}</Typography>
+                            <Typography variant="body2">{c.phone}</Typography>
+                          </Paper>
+                        ))}
+                      </Stack>
+
+                      <Button
+                        sx={{ mt: 1.5 }}
+                        variant="outlined"
+                        fullWidth
+                        onClick={() => setClientModalOpen(true)}
+                      >
+                        + Nuevo cliente
+                      </Button>
+
+                      {!order.clientId && (
+                        <Box mt={2}>
+                          <DraftOrderSearch onSelect={loadDraftOrder} />
+                        </Box>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          bgcolor: "#f8fafc",
+                          borderRadius: 3,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          boxShadow: 0,
+                        }}
+                      >
+                        <Typography fontWeight="bold" variant="h6">
+                          {order.clientName}
+                        </Typography>
+                        <Typography variant="body2" mb={1}>
+                          {order.clientPhone}
+                        </Typography>
+                        <Typography variant="body2" mb={2}>
+                          {order.municipality_snapshot || "—"}
+                        </Typography>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={clearClient}
+                          fullWidth
+                        >
+                          Cambiar cliente
+                        </Button>
+                      </Paper>
+
+                      {renderClientOrdersList()}
+                    </>
+                  )}
+                </Collapse>
+              </Box>
+            </Paper>
+
+            {/* PRODUCTOS */}
+            <Paper sx={panelSx}>
+              <Box sx={{ width: 6, bgcolor: "warning.main" }} />
+              <Box sx={{ flex: 1, p: 2.5 }}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                  <ShoppingCartIcon color="primary" />
+                  <Typography fontWeight="bold" variant="h6">
+                    Productos
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: "#f8fafc",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    mb: 2,
+                  }}
+                >
+                  <OrderProductPicker onAdd={addProduct} />
+                </Box>
+
+                <OrderCart
+                  items={order.items}
+                  onUpdateQuantity={updateQuantity}
+                  onUpdateDiscount={updateDiscount}
+                  onRemove={removeProduct}
+                  readonly={!canEdit}
+                />
+              </Box>
+            </Paper>
+
+            {/* RESUMEN */}
+            <Paper sx={panelSx}>
+              <Box sx={{ width: 6, bgcolor: "success.main" }} />
+              <Box sx={{ flex: 1, p: 2 }}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                  <ReceiptIcon color="success" />
+                  <Typography fontWeight="bold" variant="h6">
+                    Resumen
+                  </Typography>
+                </Stack>
+
+                <TextField
+                  label="Observaciones"
+                  placeholder="Agregar detalles adicionales del pedido..."
+                  multiline
+                  minRows={6}
+                  fullWidth
+                  value={order.notes || ""}
+                  onChange={(e) => {
+                    setOrder((prev) => ({ ...prev, notes: e.target.value }));
+                    setHasUnsavedChanges(true);
+                  }}
+                  disabled={!canEdit}
+                  sx={{
+                    mb: 2,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2.5,
+                      bgcolor: "#fff",
+                    },
+                  }}
+                />
+
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: "#f8fafc",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <OrderSummary
+                    total={estimatedTotal}
+                    onSave={handleSaveOrder}
+                    onExport={exportToWhatsApp}
+                    disabled={!canEdit}
+                  />
+                </Box>
+
+                {hasUnsavedChanges && (
+                  <Typography color="warning.main" fontSize={13} mt={1.5}>
+                    ⚠️ Cambios sin guardar
+                  </Typography>
+                )}
+
+                <Button
+                  variant="contained"
+                  color="success"
+                  fullWidth
+                  sx={{ mt: 2, borderRadius: 3, py: 1.2 }}
+                  disabled={!order.orderId || !canEdit}
+                  onClick={() => {
+                    if (hasUnsavedChanges) {
+                      setUnsavedDialogOpen(true);
+                    } else {
+                      setConfirmOpen(true);
+                    }
+                  }}
+                >
+                  Guardar / Confirmar
+                </Button>
+              </Box>
+            </Paper>
+          </Stack>
+        </Box>
+
+        {/* DESKTOP */}
+        <Box
+          sx={{
+            display: { xs: "none", lg: "grid" },
+            gridTemplateColumns: "20% 60% 20%",
+            gap: 2,
+            height: "calc(100vh - 80px)",
+            minHeight: 0,
+          }}
+        >
+          {/* CLIENTE */}
+          <Paper sx={{ ...panelSx, height: "100%" }}>
+            <Box sx={{ width: 6, bgcolor: "info.main", flexShrink: 0 }} />
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                overflowY: "auto",
+              }}
+            >
+              <Box sx={{ px: 2, pt: 2, pb: 1.5, flexShrink: 0 }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <PersonIcon color="info" />
+                    <Typography fontWeight="bold" variant="h6">
+                      Cliente
+                    </Typography>
+                  </Stack>
+
+                  <IconButton onClick={() => setClientSectionOpen((p) => !p)}>
+                    <ExpandMoreIcon
+                      sx={{
+                        transform: clientSectionOpen
+                          ? "rotate(180deg)"
+                          : "rotate(0deg)",
+                        transition: "0.3s",
+                      }}
+                    />
+                  </IconButton>
+                </Stack>
+              </Box>
+
+              <Collapse
+                in={clientSectionOpen}
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
+                <Divider sx={{ mx: 2, mb: 1.5 }} />
+                <Box
+                  sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: "auto",
+                    px: 2,
+                    pb: 2,
+                  }}
+                >
+                  {!order.clientId ? (
+                    <>
+                      <TextField
+                        label="Buscar cliente"
+                        fullWidth
+                        value={clientQuery}
+                        onChange={(e) => setClientQuery(e.target.value)}
+                      />
+
+                      <Stack spacing={1} mt={1.5}>
+                        {clientsFound.map((c) => (
+                          <Paper
+                            key={c.id}
+                            sx={{
+                              p: 1.5,
+                              cursor: "pointer",
+                              borderRadius: 2.5,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              boxShadow: 0,
+                              "&:hover": { bgcolor: "#f8fafc" },
+                            }}
+                            onClick={() => handleSelectClient(c)}
+                          >
+                            <Typography fontWeight="bold">{c.name}</Typography>
+                            <Typography variant="body2">{c.phone}</Typography>
+                          </Paper>
+                        ))}
+                      </Stack>
+
+                      <Button
+                        sx={{ mt: 1.5 }}
+                        variant="outlined"
+                        fullWidth
+                        onClick={() => setClientModalOpen(true)}
+                      >
+                        + Nuevo cliente
+                      </Button>
+
+                      {!order.clientId && (
+                        <Box mt={2}>
+                          <DraftOrderSearch onSelect={loadDraftOrder} />
+                        </Box>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          bgcolor: "#f8fafc",
+                          borderRadius: 3,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          boxShadow: 0,
+                        }}
+                      >
+                        <Typography fontWeight="bold" variant="h6">
+                          {order.clientName}
+                        </Typography>
+                        <Typography variant="body2" mb={1}>
+                          {order.clientPhone}
+                        </Typography>
+                        <Typography variant="body2" mb={2}>
+                          {order.municipality_snapshot || "—"}
+                        </Typography>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={clearClient}
+                          fullWidth
+                        >
+                          Cambiar cliente
+                        </Button>
+                      </Paper>
+
+                      {renderClientOrdersList()}
+                    </>
+                  )}
+                </Box>
+              </Collapse>
+            </Box>
+          </Paper>
+
+          {/* PRODUCTOS */}
+          <Paper sx={{ ...panelSx, height: "100%" }}>
+            <Box sx={{ width: 6, bgcolor: "warning.main", flexShrink: 0 }} />
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <Box sx={{ px: 2.5, pt: 2.5, pb: 2, flexShrink: 0 }}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                  <ShoppingCartIcon color="primary" />
+                  <Typography fontWeight="bold" variant="h6">
+                    Productos
+                  </Typography>
+                </Stack>
+
+                <Box
+                  sx={{
+                    p: 0,
+                    borderRadius: 3,
+                    bgcolor: "#f8fafc",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <OrderProductPicker onAdd={addProduct} />
+                </Box>
+              </Box>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  p: 2.5,
+                }}
+              >
+                <OrderCart
+                  items={order.items}
+                  onUpdateQuantity={updateQuantity}
+                  onUpdateDiscount={updateDiscount}
+                  onRemove={removeProduct}
+                  readonly={!canEdit}
+                />
+              </Box>
+            </Box>
+          </Paper>
+
+          {/* RESUMEN */}
+          <Paper sx={{ ...panelSx, height: "100%" }}>
+            <Box sx={{ width: 6, bgcolor: "success.main", flexShrink: 0 }} />
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <Box sx={{ px: 2, pt: 2, pb: 1.5, flexShrink: 0 }}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <ReceiptIcon color="success" />
+                  <Typography fontWeight="bold" variant="h6">
+                    Resumen
+                  </Typography>
+                </Stack>
+              </Box>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  px: 2,
+                  pb: 2,
+                }}
+              >
+                <TextField
+                  label="Observaciones"
+                  placeholder="Agregar detalles adicionales del pedido..."
+                  multiline
+                  minRows={5}
+                  fullWidth
+                  value={order.notes || ""}
+                  onChange={(e) => {
+                    setOrder((prev) => ({ ...prev, notes: e.target.value }));
+                    setHasUnsavedChanges(true);
+                  }}
+                  disabled={!canEdit}
+                  sx={{
+                    mt: 1,
+                    mb: 1,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2.5,
+                      bgcolor: "#fff",
+                    },
+                  }}
+                />
+
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: "#f8fafc",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <OrderSummary
+                    total={estimatedTotal}
+                    onSave={handleSaveOrder}
+                    onExport={exportToWhatsApp}
+                    disabled={!canEdit}
+                  />
+                </Box>
+
+                {hasUnsavedChanges && (
+                  <Typography color="warning.main" fontSize={13} mt={1.5}>
+                    ⚠️ Cambios sin guardar
+                  </Typography>
+                )}
+
+                <Button
+                  variant="contained"
+                  color="success"
+                  fullWidth
+                  sx={{ mt: 1, borderRadius: 3, py: 1.2 }}
+                  disabled={!order.orderId || !canEdit}
+                  onClick={() => {
+                    if (hasUnsavedChanges) {
+                      setUnsavedDialogOpen(true);
+                    } else {
+                      setConfirmOpen(true);
+                    }
+                  }}
+                >
+                  Guardar / Confirmar
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </Box>
+      </Box>
+
+      {/* RECEIPTS ocultos para exportar */}
+      {/* <Box sx={{ position: "absolute", left: -9999, top: 0 }}> */}
       <OrderReceipt
         ref={receiptRef}
         order={order}
         totalAmount={estimatedTotal}
         logoUrl={logo}
       />
-      <Box sx={{ position: "absolute", left: -9999 }}>
+      {/* </Box> */}
+
+      <Box sx={{ position: "absolute", left: -9999, top: 0 }}>
         <OrderConfirmationReceipt
           ref={confirmationReceiptRef}
           order={confirmedOrder ?? order}
@@ -564,6 +1110,8 @@ export default function OrderManager({
           <Button onClick={() => setClientModalOpen(false)}>Cancelar</Button>
         </DialogActions>
       </Dialog>
+
+      {/* DIALOG CAMBIOS SIN GUARDAR */}
       <Dialog
         open={unsavedDialogOpen}
         onClose={() => setUnsavedDialogOpen(false)}
@@ -600,6 +1148,7 @@ export default function OrderManager({
           </Button>
         </DialogActions>
       </Dialog>
+
       {/* CONFIRM DIALOG */}
       <ConfirmOrderDialog
         open={confirmOpen}
@@ -636,6 +1185,6 @@ export default function OrderManager({
           }, 400);
         }}
       />
-    </Stack>
+    </Box>
   );
 }

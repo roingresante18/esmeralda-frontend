@@ -162,11 +162,11 @@ export default function OrderCart({
         <TableHead>
           <TableRow>
             <TableCell>Producto</TableCell>
-            <TableCell width={100}>Cantidad</TableCell>
-            <TableCell width={130}>Precio</TableCell>
-            <TableCell width={150}>Descuento %</TableCell>
-            <TableCell width={120}>Total</TableCell>
-            <TableCell width={48} />
+            <TableCell width={70}>Cantidad</TableCell>
+            <TableCell width={100}>Precio</TableCell>
+            <TableCell width={70}>Desc%</TableCell>
+            <TableCell width={50}>Total</TableCell>
+            <TableCell width={25} />
           </TableRow>
         </TableHead>
 
@@ -178,7 +178,9 @@ export default function OrderCart({
             return (
               <TableRow key={item.productId}>
                 <TableCell>
-                  <Typography fontWeight={500}>{item.description}</Typography>
+                  <Typography fontSize={13} fontWeight={200}>
+                    {item.description}
+                  </Typography>
                 </TableCell>
 
                 <TableCell>
@@ -186,7 +188,7 @@ export default function OrderCart({
                     type="number"
                     size="small"
                     fullWidth
-                    inputProps={{ min: 1 }}
+                    inputProps={{ min: 0.1 }}
                     value={item.quantity}
                     disabled={readonly}
                     onChange={(e) =>

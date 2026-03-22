@@ -48,8 +48,8 @@ export default function DraftOrderSearch({ onSelect }: DraftOrderSearchProps) {
 
   return (
     <Paper sx={{ p: 3 }}>
-      <Typography variant="h6" fontWeight="bold" gutterBottom>
-        Recuperar cotización guardada
+      <Typography fontSize={13} fontWeight="bold" gutterBottom>
+        Recuperar cotización
       </Typography>
 
       <TextField
