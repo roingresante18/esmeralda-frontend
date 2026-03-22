@@ -61,6 +61,8 @@ interface Order {
   delivery_date: string;
   notes?: string | null;
   municipality_snapshot: string;
+  deposit_print_count?: number;
+  deposit_last_printed_at?: string | null;
 }
 
 /* ============================================================
@@ -97,6 +99,9 @@ export default function DepositOrders() {
   const [filterMunicipality, setFilterMunicipality] = useState<string>("ALL");
   const [search, setSearch] = useState("");
 
+  const [reprintAlertOpen, setReprintAlertOpen] = useState(false);
+  const [pendingPrintOrders, setPendingPrintOrders] = useState<Order[]>([]);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousOrdersRef = useRef<Order[]>([]);
 
@@ -114,6 +119,36 @@ export default function DepositOrders() {
     }
 
     navigate("/dashboard");
+  };
+
+  /* ============================================================
+     HELPERS
+  ============================================================ */
+
+  const wasPrintedBefore = (order: Order) =>
+    Number(order.deposit_print_count || 0) > 0;
+
+  const getSelectedOrders = () => {
+    const selectedIds = selectionModel.ids;
+    return filteredOrders.filter((o) => selectedIds.has(o.id));
+  };
+
+  const openPrintFlow = (ordersToCheck: Order[]) => {
+    if (!ordersToCheck.length) return;
+
+    setSelectionModel({
+      type: "include",
+      ids: new Set(ordersToCheck.map((o) => o.id)),
+    });
+
+    if (ordersToCheck.some(wasPrintedBefore)) {
+      setPendingPrintOrders(ordersToCheck.filter(wasPrintedBefore));
+      setReprintAlertOpen(true);
+      return;
+    }
+
+    setPendingPrintOrders([]);
+    setPdfOpen(true);
   };
 
   /* ============================================================
@@ -296,31 +331,43 @@ export default function DepositOrders() {
 
     setIsPrinting(true);
 
-    const selectedIds = selectionModel.ids;
-    const ordersToPrint = filteredOrders.filter((o) => selectedIds.has(o.id));
+    try {
+      const selectedIds = selectionModel.ids;
+      const ordersToPrint = filteredOrders.filter((o) => selectedIds.has(o.id));
 
-    const doc = (
-      <Document>
-        {ordersToPrint.map((order) => (
-          <OrderDepositPDF key={order.id} order={order} />
-        ))}
-      </Document>
-    );
+      const doc = (
+        <Document>
+          {ordersToPrint.map((order) => (
+            <OrderDepositPDF key={order.id} order={order} />
+          ))}
+        </Document>
+      );
 
-    const blob = await pdf(doc).toBlob();
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url);
-    win?.print();
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url);
+      win?.print();
 
-    for (const order of ordersToPrint) {
-      if (order.status === "CONFIRMED") {
-        await handleSetPreparing(order.id);
+      for (const order of ordersToPrint) {
+        await api.patch(`/orders/${order.id}/deposit-print`);
+
+        if (order.status === "CONFIRMED") {
+          await handleSetPreparing(order.id);
+        }
       }
-    }
 
-    setPdfOpen(false);
-    setSelectionModel({ type: "include", ids: new Set() });
-    setIsPrinting(false);
+      await fetchOrders();
+
+      setPdfOpen(false);
+      setReprintAlertOpen(false);
+      setPendingPrintOrders([]);
+      setSelectionModel({ type: "include", ids: new Set() });
+    } catch (err) {
+      console.error("Error imprimiendo pedidos:", err);
+      alert("❌ Error al imprimir pedidos");
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   /* ============================================================
@@ -351,14 +398,14 @@ export default function DepositOrders() {
       {
         field: "client",
         headerName: "Cliente",
-        flex: 1,
+        flex: 0.8,
         valueGetter: (_v, row) => row.client.name,
       },
 
       {
         field: "municipality_snapshot",
         headerName: "Localidad",
-        flex: 0.9,
+        flex: 0.5,
       },
 
       {
@@ -366,6 +413,25 @@ export default function DepositOrders() {
         headerName: "Estado",
         flex: 0.5,
         renderCell: (params) => getStatusChip(params.row.status),
+      },
+
+      {
+        field: "printed",
+        headerName: "Impreso",
+        flex: 0.7,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => {
+          const count = Number(params.row.deposit_print_count || 0);
+
+          if (count === 0) {
+            return <Chip label="Nuevo" size="small" />;
+          }
+
+          return (
+            <Chip label={`Reimp (${count})`} color="warning" size="small" />
+          );
+        },
       },
 
       {
@@ -450,7 +516,7 @@ export default function DepositOrders() {
       {
         field: "actions",
         headerName: "Acciones",
-        flex: 1.2,
+        flex: 1.3,
         sortable: false,
         filterable: false,
         renderCell: (params) => {
@@ -477,13 +543,7 @@ export default function DepositOrders() {
                   fullWidth={isMobile}
                   variant="contained"
                   disabled={isPrinting}
-                  onClick={() => {
-                    setSelectionModel({
-                      type: "include",
-                      ids: new Set([order.id]),
-                    });
-                    setPdfOpen(true);
-                  }}
+                  onClick={() => openPrintFlow([order])}
                 >
                   Imprimir
                 </Button>
@@ -535,7 +595,6 @@ export default function DepositOrders() {
         py: { xs: 1.5, md: 2 },
       }}
     >
-      {/* HEADER FIJO EN 3 FILAS */}
       <Paper
         elevation={3}
         sx={{
@@ -548,7 +607,6 @@ export default function DepositOrders() {
           backgroundColor: "background.paper",
         }}
       >
-        {/* FILA 1 */}
         <Box
           sx={{
             display: "grid",
@@ -583,7 +641,6 @@ export default function DepositOrders() {
           </Button>
         </Box>
 
-        {/* FILA 2 */}
         <Box
           sx={{
             display: "grid",
@@ -653,7 +710,6 @@ export default function DepositOrders() {
           />
         </Box>
 
-        {/* FILA 3 */}
         <Stack
           direction="row"
           spacing={1}
@@ -693,7 +749,6 @@ export default function DepositOrders() {
         </Stack>
       </Paper>
 
-      {/* TABLA */}
       <Box
         sx={{
           width: "100%",
@@ -705,13 +760,7 @@ export default function DepositOrders() {
             orders={filteredOrders}
             isPrinting={isPrinting}
             onView={(order) => setSelectedOrder(order)}
-            onPrint={(order) => {
-              setSelectionModel({
-                type: "include",
-                ids: new Set([order.id]),
-              });
-              setPdfOpen(true);
-            }}
+            onPrint={(order) => openPrintFlow([order])}
             onMarkPrepared={handleMarkPrepared}
           />
         ) : (
@@ -780,6 +829,24 @@ export default function DepositOrders() {
             Localidad: {selectedOrder?.municipality_snapshot || "—"}
           </Typography>
 
+          <Typography mt={1}>
+            Impresiones previas: {selectedOrder?.deposit_print_count || 0}
+          </Typography>
+
+          {selectedOrder?.deposit_last_printed_at && (
+            <Typography variant="body2" color="text.secondary">
+              Última impresión:{" "}
+              {format(
+                toZonedTime(
+                  parseISO(selectedOrder.deposit_last_printed_at),
+                  ARG_TIMEZONE,
+                ),
+                "dd/MM/yyyy HH:mm",
+                { locale: es },
+              )}
+            </Typography>
+          )}
+
           <Typography mt={2} fontWeight="bold">
             Productos:
           </Typography>
@@ -802,6 +869,69 @@ export default function DepositOrders() {
 
         <DialogActions>
           <Button onClick={() => setSelectedOrder(null)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MODAL ALERTA REIMPRESIÓN */}
+      <Dialog
+        open={reprintAlertOpen}
+        onClose={() => setReprintAlertOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>⚠️ Pedido ya impreso</DialogTitle>
+
+        <DialogContent dividers>
+          <Typography mb={2}>
+            Uno o más pedidos seleccionados ya fueron impresos anteriormente.
+          </Typography>
+
+          <Typography fontWeight="bold" color="error" mb={2}>
+            Antes de imprimir nuevamente, eliminá el papel anterior para evitar
+            preparar un pedido duplicado.
+          </Typography>
+
+          <Stack spacing={1}>
+            {pendingPrintOrders.map((order) => (
+              <Paper
+                key={order.id}
+                variant="outlined"
+                sx={{ p: 1.5, borderRadius: 2 }}
+              >
+                <Typography fontWeight="bold">Pedido #{order.id}</Typography>
+                <Typography variant="body2">
+                  Cliente: {order.client?.name}
+                </Typography>
+                <Typography variant="body2">
+                  Fecha entrega: {order.delivery_date || "Sin fecha"}
+                </Typography>
+                <Typography variant="body2">
+                  Veces impreso: {order.deposit_print_count || 0}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setReprintAlertOpen(false);
+              setPendingPrintOrders([]);
+            }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={() => {
+              setPdfOpen(true);
+            }}
+          >
+            Entiendo, imprimir igual
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -840,7 +970,6 @@ export default function DepositOrders() {
         </DialogActions>
       </Dialog>
 
-      {/* AUDIO SOLO UNA VEZ */}
       <audio ref={audioRef} src="/sounds/alert.mp3" preload="auto" />
 
       <style>
