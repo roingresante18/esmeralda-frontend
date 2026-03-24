@@ -8,6 +8,12 @@ export interface DeliveryDataFormErrors {
   zone?: string;
 }
 
+const isValidDateValue = (value?: string) => {
+  if (!value) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime());
+};
+
 export const validateDeliveryDataForm = (
   values: DeliveryDataFormValues,
 ): DeliveryDataFormErrors => {
@@ -15,6 +21,8 @@ export const validateDeliveryDataForm = (
 
   if (!values.deliveryDate) {
     errors.deliveryDate = "La fecha de entrega es obligatoria.";
+  } else if (!isValidDateValue(values.deliveryDate)) {
+    errors.deliveryDate = "La fecha de entrega no es válida.";
   }
 
   if (!values.paymentMethod) {

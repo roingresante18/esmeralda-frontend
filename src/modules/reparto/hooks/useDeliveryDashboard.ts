@@ -23,6 +23,12 @@ const isWithinNext12Hours = (value?: string | null) => {
   return diff >= 0 && diff <= 12 * 60 * 60 * 1000;
 };
 
+const getPendingAmount = (order: DeliveryOrder) => {
+  const total = Number(order.amountToCharge ?? 0);
+  const alreadyPaid = Number(order.paymentSummary?.total_paid ?? 0);
+  return Math.max(0, total - alreadyPaid);
+};
+
 export const useDeliveryDashboard = () => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,6 +43,7 @@ export const useDeliveryDashboard = () => {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const data = await deliveryApi.getDriverOrders();
       setOrders(data);
@@ -69,8 +76,10 @@ export const useDeliveryDashboard = () => {
       }
 
       if (filters.zone && order.zone !== filters.zone) return false;
-      if (filters.municipality && order.municipality !== filters.municipality)
+      if (filters.municipality && order.municipality !== filters.municipality) {
         return false;
+      }
+
       if (
         filters.status &&
         filters.status !== "ALL" &&
@@ -93,43 +102,50 @@ export const useDeliveryDashboard = () => {
   const kpis: DeliveryDashboardKpis = useMemo(() => {
     const totalAssigned = filteredOrders.length;
     const totalToday = filteredOrders.length;
+
     const pending = filteredOrders.filter((o) =>
       ["ASSIGNED", "IN_DELIVERY", "PENDING_DELIVERY"].includes(
         o.deliveryStatus,
       ),
     ).length;
+
     const delivered = filteredOrders.filter(
       (o) => o.deliveryStatus === "DELIVERED",
     ).length;
+
     const partialDelivered = filteredOrders.filter(
       (o) => o.deliveryStatus === "PARTIAL_DELIVERED",
     ).length;
+
     const rescheduled = filteredOrders.filter(
       (o) => o.deliveryStatus === "RESCHEDULED",
     ).length;
+
     const notDelivered = filteredOrders.filter(
       (o) => o.deliveryStatus === "NOT_DELIVERED",
     ).length;
 
-    const cashCollected = filteredOrders
-      .filter((o) =>
-        ["DELIVERED", "PARTIAL_DELIVERED"].includes(o.deliveryStatus),
-      )
-      .reduce((acc, o) => {
-        if (o.paymentMethod === "CASH") return acc + o.amountToCharge;
-        if (o.paymentMethod === "BOTH") return acc + o.amountToCharge / 2;
-        return acc;
-      }, 0);
+    const deliveredOrders = filteredOrders.filter((o) =>
+      ["DELIVERED", "PARTIAL_DELIVERED"].includes(o.deliveryStatus),
+    );
 
-    const transferCollected = filteredOrders
-      .filter((o) =>
-        ["DELIVERED", "PARTIAL_DELIVERED"].includes(o.deliveryStatus),
-      )
-      .reduce((acc, o) => {
-        if (o.paymentMethod === "TRANSFER") return acc + o.amountToCharge;
-        if (o.paymentMethod === "BOTH") return acc + o.amountToCharge / 2;
-        return acc;
-      }, 0);
+    const cashCollected = deliveredOrders.reduce((acc, order) => {
+      const pendingAmount = getPendingAmount(order);
+
+      if (order.paymentMethod === "CASH") return acc + pendingAmount;
+      if (order.paymentMethod === "BOTH") return acc + pendingAmount / 2;
+
+      return acc;
+    }, 0);
+
+    const transferCollected = deliveredOrders.reduce((acc, order) => {
+      const pendingAmount = getPendingAmount(order);
+
+      if (order.paymentMethod === "TRANSFER") return acc + pendingAmount;
+      if (order.paymentMethod === "BOTH") return acc + pendingAmount / 2;
+
+      return acc;
+    }, 0);
 
     return {
       totalAssigned,

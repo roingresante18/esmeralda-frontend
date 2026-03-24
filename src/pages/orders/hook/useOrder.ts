@@ -1,35 +1,6 @@
 import { useState } from "react";
-import type { OrderDraft, CartItem, OrderStatus } from "../../types/types";
+import type { OrderDraft, CartItem, DraftOrderApi } from "../../types/types";
 import api from "../../../api/api";
-/* ============================================================
-   Tipo API de borradores
-============================================================ */
-
-export type DraftOrderApi = {
-  id: number;
-  status: OrderStatus;
-  created_at: string;
-  delivery_date?: string;
-  notes: string;
-  municipality_snapshot: string;
-
-  client?: {
-    id: number;
-    name: string;
-    phone: string;
-  };
-
-  items: {
-    id: number;
-    quantity: number;
-    discount_percent: number;
-    unit_price: number;
-    product?: {
-      id: number;
-      description?: string;
-    };
-  }[];
-};
 
 /* ============================================================
    HOOK PRINCIPAL
@@ -44,6 +15,9 @@ export function useOrder(canEdit: boolean) {
     clientName: "",
     clientPhone: "",
     items: [],
+    clientAddress: "",
+    clientLatitude: undefined,
+    clientLongitude: undefined,
     status: "QUOTATION",
     createdAt: new Date().toISOString(),
     deliveryDate: "",
@@ -134,12 +108,23 @@ export function useOrder(canEdit: boolean) {
       clientId: draft.client?.id,
       clientName: draft.client?.name ?? "",
       clientPhone: draft.client?.phone ?? "",
+      clientAddress: draft.client?.address ?? "",
+      clientLatitude:
+        draft.client?.latitude != null
+          ? Number(draft.client.latitude)
+          : undefined,
+      clientLongitude:
+        draft.client?.longitude != null
+          ? Number(draft.client.longitude)
+          : undefined,
       items,
       status: draft.status,
       createdAt: draft.created_at,
       deliveryDate: draft.delivery_date ?? "",
       notes: draft.notes ?? "",
       municipality_snapshot: draft.municipality_snapshot ?? "",
+      paymentSummary: draft.payment_summary,
+      payments: draft.payments ?? [],
     });
   };
 

@@ -10,17 +10,24 @@ const toDay = (d: Date) => d.toISOString().split("T")[0];
 export const useTruckPreparation = () => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
       setLoading(true);
+      setError(null);
+
       try {
         const data = await deliveryApi.getDriverOrders();
         setOrders(data);
+      } catch (e) {
+        console.error(e);
+        setError("No se pudo cargar la preparación de camión.");
       } finally {
         setLoading(false);
       }
     };
+
     run();
   }, []);
 
@@ -33,9 +40,11 @@ export const useTruckPreparation = () => {
     const totalToday = orders.filter((o) =>
       o.deliveryDate?.startsWith(today),
     ).length;
+
     const totalTomorrow = orders.filter((o) =>
       o.deliveryDate?.startsWith(tomorrow),
     ).length;
+
     const totalNext12h = orders.filter((o) => {
       if (!o.deliveryDate) return false;
       const diff = new Date(o.deliveryDate).getTime() - Date.now();
@@ -63,16 +72,18 @@ export const useTruckPreparation = () => {
       groupedByDate: groupCount(
         orders.map((o) => o.deliveryDate?.split("T")[0] || "Sin fecha"),
       ).map((i) => ({ date: i.key, count: i.count })),
-      groupedByZone: groupCount(orders.map((o) => o.zone)).map((i) => ({
-        zone: i.key,
-        count: i.count,
-      })),
-      groupedByMunicipality: groupCount(orders.map((o) => o.municipality)).map(
+      groupedByZone: groupCount(orders.map((o) => o.zone || "Sin zona")).map(
         (i) => ({
-          municipality: i.key,
+          zone: i.key,
           count: i.count,
         }),
       ),
+      groupedByMunicipality: groupCount(
+        orders.map((o) => o.municipality || "Sin municipio"),
+      ).map((i) => ({
+        municipality: i.key,
+        count: i.count,
+      })),
       groupedByDriver: groupCount(
         orders.map((o) => o.assignedDriverName || "Sin chofer"),
       ).map((i) => ({
@@ -85,6 +96,7 @@ export const useTruckPreparation = () => {
   return {
     orders,
     loading,
+    error,
     summary,
     today,
     tomorrow,

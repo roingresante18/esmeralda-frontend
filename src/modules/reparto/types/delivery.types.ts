@@ -17,6 +17,24 @@ export type GpsSource =
   | "DRIVER_CAPTURE"
   | "MANUAL";
 
+export type DeliveryFailureReason =
+  | "CUSTOMER_ABSENT"
+  | "ADDRESS_NOT_FOUND"
+  | "REJECTED_BY_CUSTOMER"
+  | "NO_CASH_AVAILABLE"
+  | "ACCESS_ISSUE"
+  | "VEHICLE_ISSUE"
+  | "WEATHER"
+  | "OTHER";
+
+export type DeliveryRescheduleReason =
+  | "CUSTOMER_REQUEST"
+  | "ADDRESS_CLOSED"
+  | "ROUTE_DELAY"
+  | "OPERATIONAL_ISSUE"
+  | "STOCK_ISSUE"
+  | "OTHER";
+
 export interface GPSPoint {
   lat: number;
   lng: number;
@@ -64,39 +82,6 @@ export interface DeliveryCustomerSnapshot {
   municipality: string;
   zone: string;
   customerGps?: GPSPoint | null;
-}
-
-export interface DeliveryOrder {
-  id: number;
-  customerId: number;
-  customerName: string;
-  phone?: string;
-  address: string;
-  municipality: string;
-  zone: string;
-  deliveryDate: string | null;
-  deliveryStatus: DeliveryStatus;
-  paymentMethod: PaymentMethod;
-  amountToCharge: number;
-  assignedDriverId?: number | null;
-  assignedDriverName?: string | null;
-  notes?: string;
-  products: DeliveryProduct[];
-  totals: DeliveryTotals;
-  routeOrder?: number | null;
-  municipalityOrder?: number | null;
-  customerGps?: GPSPoint | null;
-  orderGps?: GPSPoint | null;
-  deliveredGps?: GPSPoint | null;
-  deliveredAt?: string | null;
-  deliveredBy?: {
-    userId: number;
-    name: string;
-  } | null;
-  deliveryObservation?: string;
-  evidencePending?: boolean;
-  municipalityDeliveryOrder?: number | null;
-  priority?: number | null;
 }
 
 export interface DriverExpense {
@@ -199,6 +184,7 @@ export interface PreparationSummary {
     count: number;
   }>;
 }
+
 export interface CustomerDeliverySnapshot {
   customerId: number;
   customerName: string;
@@ -230,4 +216,98 @@ export interface DeliveryDataFormValues {
   customerGps?: GPSPoint | null;
   orderGps?: GPSPoint | null;
   notes: string;
+}
+
+export type DeliveryAuditEventType =
+  | "ORDER_ASSIGNED_TO_DRIVER"
+  | "ORDER_CONFIRMED_FOR_DELIVERY"
+  | "ORDER_GPS_UPDATED"
+  | "DRIVER_STARTED_ROUTE"
+  | "DRIVER_CAPTURED_GPS"
+  | "DELIVERY_STATUS_CHANGED"
+  | "DELIVERY_CONFIRMED"
+  | "PAYMENT_RECORDED"
+  | "EXPENSE_RECORDED"
+  | "DELIVERY_RESCHEDULED"
+  | "DELIVERY_FAILED"
+  | "DELIVERY_PARTIAL";
+
+export interface DeliveryAuditEvent {
+  id: string;
+  type: DeliveryAuditEventType;
+  title: string;
+  description?: string;
+  createdAt: string;
+  createdBy: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DeliveryTraceability {
+  customerGps?: GPSPoint | null;
+  orderGps?: GPSPoint | null;
+  deliveredGps?: GPSPoint | null;
+  distanceCustomerToOrderMeters?: number | null;
+  distanceOrderToDeliveredMeters?: number | null;
+  distanceCustomerToDeliveredMeters?: number | null;
+  gpsConsistencyStatus?: "OK" | "WARNING" | "CRITICAL" | "NO_DATA";
+  gpsConsistencyMessage?: string;
+}
+
+export interface DeliveryPaymentSummary {
+  cash: number;
+  transfer: number;
+  card: number;
+  check: number;
+  other: number;
+  total_paid: number;
+}
+
+export interface DeliveryPayment {
+  id: number;
+  amount: number;
+  method: string;
+  type: string;
+  status: string;
+  reference?: string | null;
+  external_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  confirmed_at?: string | null;
+}
+
+export interface DeliveryOrder {
+  id: number;
+  customerId: number;
+  customerName: string;
+  phone?: string;
+  address: string;
+  municipality: string;
+  zone: string;
+  deliveryDate: string | null;
+  deliveryStatus: DeliveryStatus;
+  paymentMethod: PaymentMethod;
+  amountToCharge: number;
+  assignedDriverId?: number | null;
+  assignedDriverName?: string | null;
+  notes?: string;
+  products: DeliveryProduct[];
+  totals: DeliveryTotals;
+  routeOrder?: number | null;
+  municipalityOrder?: number | null;
+  customerGps?: GPSPoint | null;
+  orderGps?: GPSPoint | null;
+  deliveredGps?: GPSPoint | null;
+  deliveredAt?: string | null;
+  deliveredBy?: {
+    userId: number;
+    name: string;
+  } | null;
+  deliveryObservation?: string;
+  evidencePending?: boolean;
+  municipalityDeliveryOrder?: number | null;
+  priority?: number | null;
+  traceability?: DeliveryTraceability;
+  auditEvents?: DeliveryAuditEvent[];
+  paymentSummary?: DeliveryPaymentSummary;
+  payments?: DeliveryPayment[];
 }

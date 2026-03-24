@@ -16,9 +16,11 @@ import {
   Typography,
   Checkbox,
   CircularProgress,
+  Paper,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
+import PaidIcon from "@mui/icons-material/Paid";
 import type {
   ConfirmDeliveryPayload,
   DeliveryOrder,
@@ -33,6 +35,10 @@ import {
   validateDeliveryConfirmation,
 } from "../utils/delivery.validation";
 import { MobileStickyFooter } from "../components/shared/MobileStickyFooter";
+import { GpsComparisonCard } from "../components/detail/GpsComparisonCard";
+import { DeliveryAuditTimeline } from "../components/detail/DeliveryAuditTimeline";
+import { DeliveryTraceabilitySummary } from "../components/detail/DeliveryTraceabilitySummary";
+import { buildOrderTraceability } from "../utils/delivery.traceability";
 
 interface Props {
   order: DeliveryOrder;
@@ -40,12 +46,19 @@ interface Props {
   onSuccess: () => void;
 }
 
+const getAlreadyPaid = (order: DeliveryOrder) =>
+  Number(order.paymentSummary?.total_paid ?? 0);
+
+const getPendingAmount = (order: DeliveryOrder) =>
+  Math.max(0, Number(order.amountToCharge ?? 0) - getAlreadyPaid(order));
+
 export const DeliveryOrderDetailPage = ({
   order,
   onClose,
   onSuccess,
 }: Props) => {
   const [products, setProducts] = useState<DeliveryProduct[]>(order.products);
+
   const [status, setStatus] = useState<
     "DELIVERED" | "PARTIAL_DELIVERED" | "RESCHEDULED" | "NOT_DELIVERED"
   >(
@@ -55,23 +68,30 @@ export const DeliveryOrderDetailPage = ({
           | "PARTIAL_DELIVERED")
       : "DELIVERED",
   );
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     order.paymentMethod,
   );
+
+  const alreadyPaid = useMemo(() => getAlreadyPaid(order), [order]);
+  const pendingToCollect = useMemo(() => getPendingAmount(order), [order]);
+
   const [cashCollected, setCashCollected] = useState<number>(
     order.paymentMethod === "CASH"
-      ? order.amountToCharge
+      ? pendingToCollect
       : order.paymentMethod === "BOTH"
-        ? order.amountToCharge / 2
+        ? pendingToCollect / 2
         : 0,
   );
+
   const [transferCollected, setTransferCollected] = useState<number>(
     order.paymentMethod === "TRANSFER"
-      ? order.amountToCharge
+      ? pendingToCollect
       : order.paymentMethod === "BOTH"
-        ? order.amountToCharge / 2
+        ? pendingToCollect / 2
         : 0,
   );
+
   const [observation, setObservation] = useState(
     order.deliveryObservation ?? "",
   );
@@ -80,7 +100,11 @@ export const DeliveryOrderDetailPage = ({
   const { gpsPoint, gpsError, loadingGps, captureGps } =
     useGeoLocationCapture();
 
-  const pendingAmount = useMemo(
+  const [localAuditEvents, setLocalAuditEvents] = useState(
+    order.auditEvents ?? [],
+  );
+
+  const pendingProductsAmount = useMemo(
     () =>
       products.reduce((acc, p) => {
         const undelivered = Math.max(
@@ -91,6 +115,12 @@ export const DeliveryOrderDetailPage = ({
       }, 0),
     [products],
   );
+
+  const currentCollected =
+    Number(cashCollected || 0) + Number(transferCollected || 0);
+
+  const paymentCollectionError =
+    status === "DELIVERED" && currentCollected > pendingToCollect;
 
   const handleToggleDelivered = (productId: number, checked: boolean) => {
     setProducts((prev) =>
@@ -123,6 +153,23 @@ export const DeliveryOrderDetailPage = ({
     );
   };
 
+  const handleCaptureGps = async () => {
+    const point = await captureGps();
+    if (!point) return;
+
+    setLocalAuditEvents((prev) => [
+      {
+        id: `local-gps-${Date.now()}`,
+        type: "DRIVER_CAPTURED_GPS",
+        title: "GPS real capturado",
+        description: `Se registró ubicación del dispositivo (${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}).`,
+        createdAt: new Date().toISOString(),
+        createdBy: "Chofer",
+      },
+      ...prev,
+    ]);
+  };
+
   const handleAutoStatus = () => {
     const derived = getDerivedDeliveryStatus(products);
     if (derived === "PENDING_DELIVERY") return;
@@ -130,12 +177,21 @@ export const DeliveryOrderDetailPage = ({
   };
 
   const handleConfirm = async () => {
+    if (paymentCollectionError) {
+      alert("El cobro actual no puede superar el saldo pendiente del pedido.");
+      return;
+    }
+
     const validationError = validateDeliveryConfirmation(
       Boolean(gpsPoint),
       status,
       products,
     );
-    if (validationError) return alert(validationError);
+
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
 
     const payload: ConfirmDeliveryPayload = {
       orderId: order.id,
@@ -161,6 +217,16 @@ export const DeliveryOrderDetailPage = ({
     }
   };
 
+  const traceabilityPreview = useMemo(
+    () =>
+      buildOrderTraceability({
+        customerGps: order.customerGps,
+        orderGps: order.orderGps,
+        deliveredGps: gpsPoint ?? order.deliveredGps,
+      }),
+    [order.customerGps, order.orderGps, order.deliveredGps, gpsPoint],
+  );
+
   return (
     <Box sx={{ p: 2, pb: 12 }}>
       <Stack spacing={2}>
@@ -175,6 +241,7 @@ export const DeliveryOrderDetailPage = ({
             </Typography>
             <StatusChip status={order.deliveryStatus} />
           </Stack>
+
           <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
@@ -193,13 +260,72 @@ export const DeliveryOrderDetailPage = ({
 
         <Stack direction="row" spacing={1} flexWrap="wrap">
           <Chip
-            label={`Cobrar: $${order.amountToCharge.toLocaleString("es-AR")}`}
+            icon={<PaidIcon />}
+            label={`Total $${Number(order.amountToCharge).toLocaleString("es-AR")}`}
             color="success"
           />
           <Chip label={`Pago: ${paymentMethod}`} variant="outlined" />
+          {alreadyPaid > 0 && (
+            <Chip
+              label={`Adelanto $${alreadyPaid.toLocaleString("es-AR")}`}
+              color="secondary"
+              variant="outlined"
+            />
+          )}
+          <Chip
+            label={`Saldo $${pendingToCollect.toLocaleString("es-AR")}`}
+            color={pendingToCollect > 0 ? "warning" : "success"}
+            variant={pendingToCollect > 0 ? "filled" : "outlined"}
+          />
         </Stack>
 
         {order.notes && <Alert severity="info">{order.notes}</Alert>}
+
+        {order.payments && order.payments.length > 0 && (
+          <Paper
+            sx={{
+              p: 1.5,
+              bgcolor: "#f8fafc",
+              borderLeft: "4px solid #7b1fa2",
+            }}
+          >
+            <Typography fontWeight={800} sx={{ mb: 1 }}>
+              Pagos ya registrados
+            </Typography>
+
+            <Stack spacing={0.75}>
+              {order.payments.map((payment) => (
+                <Box
+                  key={payment.id}
+                  sx={{
+                    p: 1,
+                    borderRadius: 1.5,
+                    bgcolor: "#fff",
+                    border: "1px solid #e0e0e0",
+                  }}
+                >
+                  <Typography variant="body2">
+                    <b>Monto:</b> ${Number(payment.amount).toFixed(2)}
+                  </Typography>
+                  <Typography variant="body2">
+                    <b>Método:</b> {payment.method}
+                  </Typography>
+                  <Typography variant="body2">
+                    <b>Tipo:</b> {payment.type}
+                  </Typography>
+                  <Typography variant="body2">
+                    <b>Estado:</b> {payment.status}
+                  </Typography>
+                  {payment.reference && (
+                    <Typography variant="body2">
+                      <b>Referencia:</b> {payment.reference}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        )}
 
         <Divider />
 
@@ -257,7 +383,7 @@ export const DeliveryOrderDetailPage = ({
             Recalcular estado según productos
           </Button>
 
-          {pendingAmount > 0 && (
+          {pendingProductsAmount > 0 && (
             <Alert severity="warning">
               Quedan unidades pendientes. Esto habilita entrega parcial o
               reprogramación.
@@ -310,7 +436,12 @@ export const DeliveryOrderDetailPage = ({
         <Divider />
 
         <Stack spacing={1}>
-          <Typography fontWeight={800}>Cobro</Typography>
+          <Typography fontWeight={800}>Cobro en entrega</Typography>
+
+          <Alert severity="info">
+            Los pagos ya registrados se muestran solo como referencia. Acá solo
+            cargás lo cobrado ahora en la entrega.
+          </Alert>
 
           <TextField
             select
@@ -342,40 +473,50 @@ export const DeliveryOrderDetailPage = ({
             onChange={(e) => setTransferCollected(Number(e.target.value))}
             fullWidth
           />
+
+          <Paper sx={{ p: 1.5 }}>
+            <Typography variant="body2">
+              <b>Total pedido:</b> ${Number(order.amountToCharge).toFixed(2)}
+            </Typography>
+            <Typography variant="body2">
+              <b>Pagado previamente:</b> ${alreadyPaid.toFixed(2)}
+            </Typography>
+            <Typography variant="body2">
+              <b>Saldo pendiente:</b> ${pendingToCollect.toFixed(2)}
+            </Typography>
+            <Typography variant="body2">
+              <b>Cobrado ahora:</b> ${currentCollected.toFixed(2)}
+            </Typography>
+          </Paper>
+
+          {paymentCollectionError && (
+            <Alert severity="error">
+              El cobro actual supera el saldo pendiente del pedido.
+            </Alert>
+          )}
         </Stack>
 
         <Divider />
 
+        <GpsComparisonCard
+          order={{
+            ...order,
+            deliveredGps: gpsPoint ?? order.deliveredGps,
+            traceability: traceabilityPreview,
+          }}
+        />
+
         <Stack spacing={1}>
-          <Typography fontWeight={800}>GPS operativo</Typography>
+          <Typography fontWeight={800}>Captura GPS real</Typography>
 
-          <Typography variant="body2">
-            GPS cliente:{" "}
-            {order.customerGps
-              ? `${order.customerGps.lat}, ${order.customerGps.lng}`
-              : "No disponible"}
-          </Typography>
-
-          <Typography variant="body2">
-            GPS pedido:{" "}
-            {order.orderGps
-              ? `${order.orderGps.lat}, ${order.orderGps.lng}`
-              : "No disponible"}
-          </Typography>
-
-          <Typography variant="body2">
-            GPS real entrega:{" "}
-            {gpsPoint ? `${gpsPoint.lat}, ${gpsPoint.lng}` : "Aún no capturado"}
-          </Typography>
-
-          {gpsError && <Alert severity="error">{gpsError}</Alert>}
+          {gpsError ? <Alert severity="error">{gpsError}</Alert> : null}
 
           <Button
             variant="outlined"
             startIcon={
               loadingGps ? <CircularProgress size={16} /> : <MyLocationIcon />
             }
-            onClick={captureGps}
+            onClick={handleCaptureGps}
             disabled={loadingGps}
             fullWidth
           >
@@ -384,6 +525,15 @@ export const DeliveryOrderDetailPage = ({
         </Stack>
 
         <Divider />
+
+        <DeliveryTraceabilitySummary
+          order={{
+            ...order,
+            traceability: traceabilityPreview,
+          }}
+        />
+
+        <DeliveryAuditTimeline events={localAuditEvents} />
 
         <TextField
           size="small"
@@ -415,7 +565,7 @@ export const DeliveryOrderDetailPage = ({
             size="large"
             fullWidth
             onClick={handleConfirm}
-            disabled={saving || loadingGps}
+            disabled={saving || loadingGps || paymentCollectionError}
           >
             {saving ? (
               <CircularProgress size={22} />

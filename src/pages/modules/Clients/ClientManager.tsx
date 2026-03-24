@@ -13,6 +13,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Tooltip,
 } from "@mui/material";
 import {
   DataGrid,
@@ -25,21 +26,20 @@ import IconButton from "@mui/material/IconButton";
 import Chip from "@mui/material/Chip";
 import api from "../../../api/api";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import MapIcon from "@mui/icons-material/Map";
 import ClientForm from "./components/ClientForm";
+import ClientsMapModal from "./components/ClientsMapModal";
 import { useNavigate } from "react-router-dom";
 import type {
   ClientFormData,
   Municipality,
 } from "./components/ClientForm.types";
 
-/* ================= TIPOS ================= */
-
 interface Client extends ClientFormData {
   id: number;
   municipality?: Municipality | null;
 }
-
-/* ================= VALOR INICIAL ================= */
 
 const emptyClient: ClientFormData = {
   id: undefined,
@@ -62,13 +62,15 @@ export default function ClientManager() {
 
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
+  const [openMap, setOpenMap] = useState(false);
+  const [selectedMapClient, setSelectedMapClient] = useState<Client | null>(
+    null,
+  );
 
   const [search, setSearch] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] = useState<
     number | null
   >(null);
-
-  /* ================= DELETE STATES ================= */
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
@@ -77,8 +79,6 @@ export default function ClientManager() {
   const [deleteErrorMessage, setDeleteErrorMessage] = useState("");
 
   const [generalError, setGeneralError] = useState<string | null>(null);
-
-  /* ================= FETCH ================= */
 
   const fetchClients = async () => {
     try {
@@ -103,8 +103,6 @@ export default function ClientManager() {
     fetchMunicipalities();
   }, []);
 
-  /* ================= MAP ID → NAME ================= */
-
   const municipalityMap = useMemo(() => {
     const map: Record<number, string> = {};
     municipalities.forEach((m) => {
@@ -112,8 +110,6 @@ export default function ClientManager() {
     });
     return map;
   }, [municipalities]);
-
-  /* ================= CANTIDAD DE CLIENTES POR MUNICIPIO ================= */
 
   const municipalityCountMap = useMemo(() => {
     const map: Record<number, number> = {};
@@ -134,8 +130,6 @@ export default function ClientManager() {
     return map;
   }, [clients]);
 
-  /* ================= TOP MUNICIPIOS ================= */
-
   const topMunicipalities = useMemo(() => {
     return [...municipalities]
       .map((m) => ({
@@ -146,8 +140,6 @@ export default function ClientManager() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
   }, [municipalities, municipalityCountMap]);
-
-  /* ================= DELETE ================= */
 
   const handleDeleteClick = (id: number) => {
     setDeleteId(id);
@@ -176,8 +168,6 @@ export default function ClientManager() {
       setOpenDeleteError(true);
     }
   };
-
-  /* ================= FILTRO ================= */
 
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -210,18 +200,26 @@ export default function ClientManager() {
     });
   }, [clients, search, selectedMunicipality, municipalityMap]);
 
-  /* ================= COLUMNAS ================= */
+  const georeferencedClients = useMemo(() => {
+    return filteredClients.filter(
+      (client) =>
+        client.latitude != null &&
+        client.longitude != null &&
+        !Number.isNaN(Number(client.latitude)) &&
+        !Number.isNaN(Number(client.longitude)),
+    );
+  }, [filteredClients]);
 
   const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 80 },
+    { field: "id", headerName: "ID", width: 50 },
     { field: "name", headerName: "Nombre", width: 200 },
-    { field: "phone", headerName: "Teléfono", width: 150 },
+    { field: "phone", headerName: "Teléfono", width: 100 },
     { field: "email", headerName: "Email", width: 180 },
     { field: "address", headerName: "Dirección", width: 180 },
     {
       field: "municipality",
       headerName: "Municipio",
-      width: 220,
+      width: 150,
       renderCell: (params) => {
         const nestedName = params.row.municipality?.name;
         if (nestedName) {
@@ -238,6 +236,38 @@ export default function ClientManager() {
         if (!name) return "—";
 
         return <Chip label={name} size="small" />;
+      },
+    },
+    {
+      field: "geo",
+      headerName: "Geo",
+      width: 90,
+      sortable: false,
+      filterable: false,
+      align: "center",
+      headerAlign: "center",
+      renderCell: (params: GridRenderCellParams<Client>) => {
+        const hasLocation =
+          params.row.latitude != null &&
+          params.row.longitude != null &&
+          !Number.isNaN(Number(params.row.latitude)) &&
+          !Number.isNaN(Number(params.row.longitude));
+
+        if (!hasLocation) return "—";
+
+        return (
+          <Tooltip title="Ver ubicación del cliente en el mapa">
+            <IconButton
+              size="small"
+              onClick={() => {
+                setSelectedMapClient(params.row);
+                setOpenMap(true);
+              }}
+            >
+              <LocationOnIcon color="error" fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        );
       },
     },
     {
@@ -286,8 +316,6 @@ export default function ClientManager() {
     },
   ];
 
-  /* ================= RENDER ================= */
-
   return (
     <Container sx={{ mt: 4 }}>
       <Box
@@ -296,10 +324,31 @@ export default function ClientManager() {
           alignItems: "center",
           gap: 2,
           mb: 2,
+          flexWrap: "wrap",
         }}
       >
         <Typography variant="h5">Gestión de Clientes</Typography>
-
+        <Button
+          variant="contained"
+          onClick={() => {
+            setFormData(emptyClient);
+            setEditingClientId(null);
+            setOpenCreate(true);
+          }}
+        >
+          Nuevo cliente
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<MapIcon />}
+          onClick={() => {
+            setSelectedMapClient(null);
+            setOpenMap(true);
+          }}
+          disabled={georeferencedClients.length === 0}
+        >
+          Ver mapa ({georeferencedClients.length})
+        </Button>
         <Button
           startIcon={<ArrowBackIcon />}
           variant="outlined"
@@ -316,17 +365,14 @@ export default function ClientManager() {
         </Typography>
       )}
 
-      <Button
-        variant="contained"
-        sx={{ mb: 2 }}
-        onClick={() => {
-          setFormData(emptyClient);
-          setEditingClientId(null);
-          setOpenCreate(true);
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          gap: 2,
+          flexWrap: "wrap",
         }}
-      >
-        Nuevo cliente
-      </Button>
+      ></Box>
 
       <Box
         sx={{
@@ -433,6 +479,17 @@ export default function ClientManager() {
           />
         </DialogContent>
       </Dialog>
+
+      <ClientsMapModal
+        open={openMap}
+        onClose={() => {
+          setOpenMap(false);
+          setSelectedMapClient(null);
+        }}
+        clients={georeferencedClients}
+        municipalityMap={municipalityMap}
+        selectedClient={selectedMapClient}
+      />
 
       <Dialog
         open={openConfirmDelete}

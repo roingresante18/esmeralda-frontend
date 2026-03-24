@@ -4,12 +4,15 @@ import type {
   DeliveryOrder,
   DriverDailySettlement,
   DriverExpense,
+  ConfirmDeliveryDataPayload,
 } from "../types/delivery.types";
 import { adaptApiOrderToDeliveryOrder } from "./delivery.adapters";
-import type { ConfirmDeliveryDataPayload } from "../types/delivery.types";
+
+const USE_MOCK_FALLBACK = false;
+
 export const deliveryApi = {
   async getDriverOrders(): Promise<DeliveryOrder[]> {
-    const res = await api.get("/orders?last_2_weeks=true");
+    const res = await api.get("/orders?lastDays=14");
     return (res.data ?? []).map(adaptApiOrderToDeliveryOrder);
   },
 
@@ -117,6 +120,7 @@ export const deliveryApi = {
           },
         });
       }
+
       throw error;
     }
   },

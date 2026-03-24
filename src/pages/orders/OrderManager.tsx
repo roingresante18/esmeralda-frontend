@@ -30,17 +30,16 @@ import DraftOrderSearch from "./DraftOrderSearch";
 import ClientForm from "../../pages/modules/Clients/components/ClientForm";
 import api from "../../api/api";
 import OrderConfirmationReceipt from "./OrderConfirmationReceipt";
-import { useOrder, type DraftOrderApi } from "./hook/useOrder";
+import { useOrder } from "./hook/useOrder";
 import { useConfirmOrder } from "./hook/useConfirmOrder";
 import { useClientSearch, type Client } from "./hook/useClientSearch";
 import logo from "../../../public/logo.png";
-import type { OrderDraft, UserRole } from "../types/types";
+import type { OrderDraft, DraftOrderApi, UserRole } from "../types/types";
 import type {
   ClientFormData,
   Municipality,
 } from "../../pages/modules/Clients/components/ClientForm.types";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-
 type PaymentData = {
   cash: number;
   transfer: number;
@@ -182,16 +181,9 @@ export default function OrderManager({
     address,
     setAddress,
     confirmOrder,
-  } = useConfirmOrder(order.orderId, () => {
+  } = useConfirmOrder(order.orderId, order.clientId, () => {
     setOrder((p) => ({ ...p, status: "CONFIRMED" }));
-
-    setTimeout(() => {
-      exportConfirmationToWhatsApp();
-    }, 300);
-
-    clearAll();
   });
-
   /* ================= CLIENT ORDERS ================= */
   const fetchClientOrders = async (clientId: number) => {
     try {
@@ -236,6 +228,8 @@ export default function OrderManager({
       clientId: undefined,
       clientName: "",
       clientPhone: "",
+      clientLatitude: undefined,
+      clientLongitude: undefined,
       items: [],
       notes: "",
       createdAt: new Date().toISOString(),
@@ -281,7 +275,7 @@ export default function OrderManager({
 
   /* ================= SELECCIÓN DE CLIENTE ================= */
   const handleSelectClient = (client: Client) => {
-    console.log(client);
+    // console.log(client);
     applyClientToOrder(client);
     selectClient(client);
     fetchClientOrders(client.id);
@@ -294,8 +288,10 @@ export default function OrderManager({
       clientName: client.name,
       clientPhone: client.phone,
       clientAddress: client.address ?? "",
-      clientLatitude: client.latitude ?? undefined,
-      clientLongitude: client.longitude ?? undefined,
+      clientLatitude:
+        client.latitude != null ? Number(client.latitude) : undefined,
+      clientLongitude:
+        client.longitude != null ? Number(client.longitude) : undefined,
       municipality_snapshot: client.municipality?.name ?? "Sin municipio",
     }));
 
@@ -463,6 +459,28 @@ export default function OrderManager({
                     color={getStatusColor(clientOrder.status)}
                   />
                 </Box>
+
+                {clientOrder.payment_summary && (
+                  <Box mt={0.5}>
+                    <Typography variant="caption" display="block">
+                      Adelanto total: $
+                      {clientOrder.payment_summary.total_paid.toFixed(2)}
+                    </Typography>
+
+                    {clientOrder.payment_summary.cash > 0 && (
+                      <Typography variant="caption" display="block">
+                        Efectivo: ${clientOrder.payment_summary.cash.toFixed(2)}
+                      </Typography>
+                    )}
+
+                    {clientOrder.payment_summary.transfer > 0 && (
+                      <Typography variant="caption" display="block">
+                        Transferencia: $
+                        {clientOrder.payment_summary.transfer.toFixed(2)}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </Stack>
             </Paper>
           ))}
@@ -470,7 +488,27 @@ export default function OrderManager({
       )}
     </Box>
   );
+  // console.log("GPS cliente para confirmación", {
+  //   lat: (order as any).clientLatitude,
+  //   lng: (order as any).clientLongitude,
+  //   order,
+  // });
+  const confirmClientLocation = {
+    lat:
+      (order as any).clientLatitude != null
+        ? Number((order as any).clientLatitude)
+        : undefined,
+    lng:
+      (order as any).clientLongitude != null
+        ? Number((order as any).clientLongitude)
+        : undefined,
+    address: (order as any).clientAddress ?? "",
+  };
 
+  // console.log(
+  //   "clientLocation que se envía al ConfirmOrderDialog",
+  //   confirmClientLocation,
+  // );
   return (
     <Box
       sx={{
@@ -1150,6 +1188,7 @@ export default function OrderManager({
       </Dialog>
 
       {/* CONFIRM DIALOG */}
+
       <ConfirmOrderDialog
         open={confirmOpen}
         onClose={closeConfirmModal}
@@ -1159,25 +1198,36 @@ export default function OrderManager({
         setAddress={setAddress}
         order={order}
         estimatedTotal={estimatedTotal}
-        clientLocation={{
-          lat: (order as any).clientLatitude,
-          lng: (order as any).clientLongitude,
-          address: (order as any).clientAddress,
-        }}
-        onConfirm={async (payment) => {
+        // clientLocation={{
+        //   lat:
+        //     (order as any).clientLatitude != null
+        //       ? Number((order as any).clientLatitude)
+        //       : undefined,
+        //   lng:
+        //     (order as any).clientLongitude != null
+        //       ? Number((order as any).clientLongitude)
+        //       : undefined,
+        //   address: (order as any).clientAddress,
+        // }}
+        clientLocation={confirmClientLocation}
+        onConfirm={async ({ payment, shouldSaveClientGps }) => {
           setConfirmedOrder(JSON.parse(JSON.stringify(order)));
 
           setConfirmedPayment({
             ...payment,
             reference: payment.reference ?? "",
           });
+
           setConfirmedTotal(estimatedTotal);
+
           setConfirmedDelivery({
             address: address.delivery_address,
             deliveryDate: address.delivery_date,
           });
 
-          await confirmOrder(payment);
+          await confirmOrder(payment, {
+            shouldSaveClientGps,
+          });
 
           setTimeout(async () => {
             await exportConfirmationToWhatsApp();

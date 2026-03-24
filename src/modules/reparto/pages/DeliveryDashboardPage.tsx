@@ -6,6 +6,7 @@ import {
   Stack,
   CircularProgress,
   Button,
+  Box,
 } from "@mui/material";
 import { useDeliveryDashboard } from "../hooks/useDeliveryDashboard";
 import { DriverFiltersBar } from "../components/dashboard/DriverFiltersBar";
@@ -17,6 +18,9 @@ import { EmptyState } from "../components/shared/EmptyState";
 import type { DeliveryOrder } from "../types/delivery.types";
 import { deliveryApi } from "../api/delivery.api";
 import { DeliveryOrderDetailPage } from "./DeliveryOrderDetailPage";
+import AltRouteIcon from "@mui/icons-material/AltRoute";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { useNavigate } from "react-router-dom";
 
 export default function DeliveryDashboardPage() {
   const {
@@ -35,16 +39,43 @@ export default function DeliveryDashboardPage() {
   const [selectedOrder, setSelectedOrder] = useState<DeliveryOrder | null>(
     null,
   );
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [startingOrderId, setStartingOrderId] = useState<number | null>(null);
+
+  const navigate = useNavigate();
+
+  const safeRefresh = async () => {
+    setActionError(null);
+    try {
+      await fetchOrders();
+    } catch (e) {
+      console.error(e);
+      setActionError("No se pudo actualizar el tablero.");
+    }
+  };
 
   const handleStartDelivery = async (order: DeliveryOrder) => {
-    await deliveryApi.updateOrderStatus(order.id, "IN_DELIVERY");
-    fetchOrders();
+    try {
+      setActionError(null);
+      setStartingOrderId(order.id);
+
+      await deliveryApi.updateOrderStatus(order.id, "IN_DELIVERY");
+      await fetchOrders();
+    } catch (e) {
+      console.error(e);
+      setActionError("No se pudo iniciar el reparto del pedido.");
+    } finally {
+      setStartingOrderId(null);
+    }
   };
 
   return (
     <Container
       maxWidth="lg"
-      sx={{ py: { xs: 1.5, md: 3 }, px: { xs: 1.2, sm: 2 } }}
+      sx={{
+        py: { xs: 1.25, sm: 1.5, md: 3 },
+        px: { xs: 1, sm: 2 },
+      }}
     >
       <Stack spacing={1.5}>
         <DeliveryHeader
@@ -52,15 +83,48 @@ export default function DeliveryDashboardPage() {
           dateLabel={new Date().toLocaleDateString("es-AR")}
         />
 
-        <Button variant="outlined" onClick={fetchOrders}>
-          Actualizar
-        </Button>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ width: "100%" }}
+        >
+          <Button
+            variant="outlined"
+            startIcon={<AltRouteIcon />}
+            onClick={() => navigate("/reparto/municipios")}
+            fullWidth
+          >
+            Ver municipios
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<AltRouteIcon />}
+            onClick={() => navigate("/reparto/cierre")}
+            fullWidth
+          >
+            Cierre de Reparto
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={safeRefresh}
+            fullWidth
+          >
+            Actualizar
+          </Button>
+        </Stack>
 
         <DeliveryAlertBanner next12hCount={next12hCount} />
 
         {error ? (
           <Alert severity="error" sx={{ borderRadius: 3 }}>
             {error}
+          </Alert>
+        ) : null}
+
+        {actionError ? (
+          <Alert severity="error" sx={{ borderRadius: 3 }}>
+            {actionError}
           </Alert>
         ) : null}
 
@@ -83,11 +147,14 @@ export default function DeliveryDashboardPage() {
             description="Probá cambiando los filtros o verificá las asignaciones desde logística."
           />
         ) : (
-          <MunicipalityList
-            groups={municipalityGroups}
-            onOpenDetail={setSelectedOrder}
-            onStartDelivery={handleStartDelivery}
-          />
+          <Box>
+            <MunicipalityList
+              groups={municipalityGroups}
+              onOpenDetail={setSelectedOrder}
+              onStartDelivery={handleStartDelivery}
+              startingOrderId={startingOrderId}
+            />
+          </Box>
         )}
       </Stack>
 
@@ -98,6 +165,7 @@ export default function DeliveryDashboardPage() {
         PaperProps={{
           sx: {
             width: { xs: "100%", sm: 520 },
+            maxWidth: "100%",
           },
         }}
       >

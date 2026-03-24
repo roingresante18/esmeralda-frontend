@@ -97,7 +97,7 @@ export const OrderDeliveryMetaForm = ({
 
         <Grid size={{ xs: 12 }}>
           <TextField
-            label="Dirección"
+            label="Dirección de entrega"
             size="small"
             value={values.address}
             onChange={(e) => onChange("address", e.target.value)}

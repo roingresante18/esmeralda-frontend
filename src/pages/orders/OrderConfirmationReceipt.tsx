@@ -52,7 +52,7 @@ const OrderConfirmationReceipt = forwardRef<HTMLDivElement, Props>(
   ) => {
     const totalPaid = cash + transfer;
     const remaining = totalAmount - totalPaid;
-    console.log("CONFIRM RECEIPT ORDER", order);
+    // console.log("CONFIRM RECEIPT ORDER", order);
     return (
       <Stack
         ref={ref}

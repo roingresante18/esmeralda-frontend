@@ -178,7 +178,7 @@ export default function MapPicker({ onSelect, initialPosition }: any) {
     <Box sx={{ height: 420, width: "100%", position: "relative" }}>
       <MapContainer
         center={position || defaultPos}
-        zoom={33}
+        zoom={14}
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer

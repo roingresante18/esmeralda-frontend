@@ -23,12 +23,17 @@ export interface OrderDraft {
   clientId?: number;
   clientName: string;
   clientPhone: string;
+  clientAddress?: string;
+  clientLatitude?: number;
+  clientLongitude?: number;
   items: CartItem[];
   status: OrderStatus;
   createdAt: string;
   deliveryDate: string | null;
   municipality_snapshot: string;
-  notes?: string; // ⭐ NUEVO
+  notes?: string;
+  paymentSummary?: PaymentSummary;
+  payments?: OrderPaymentItem[];
 }
 
 // =====================
@@ -79,12 +84,21 @@ export type DraftOrderApi = {
   delivery_date?: string;
   notes: string;
   municipality_snapshot: string;
+  total_amount?: number;
+  payment_confirmed?: boolean;
 
   client?: {
     id: number;
     name: string;
     phone: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
   };
+
+  payment_summary?: PaymentSummary;
+
+  payments?: OrderPaymentItem[];
 
   items: {
     id: number;
@@ -96,4 +110,25 @@ export type DraftOrderApi = {
       description?: string;
     };
   }[];
+};
+export type OrderPaymentItem = {
+  id: number;
+  amount: number;
+  method: string;
+  type: string;
+  status: string;
+  reference?: string | null;
+  external_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  confirmed_at?: string | null;
+};
+
+export type PaymentSummary = {
+  cash: number;
+  transfer: number;
+  card: number;
+  check: number;
+  other: number;
+  total_paid: number;
 };
