@@ -57,8 +57,6 @@ export const useDeliveryDashboard = () => {
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 15000);
-    return () => clearInterval(interval);
   }, [fetchOrders]);
 
   const filteredOrders = useMemo(() => {
@@ -162,14 +160,45 @@ export const useDeliveryDashboard = () => {
   }, [filteredOrders]);
 
   const zones = useMemo(
-    () => [...new Set(orders.map((o) => o.zone).filter(Boolean))],
+    () =>
+      [...new Set(orders.map((o) => o.zone).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "es"),
+      ),
     [orders],
   );
 
   const municipalities = useMemo(
-    () => [...new Set(orders.map((o) => o.municipality).filter(Boolean))],
+    () =>
+      [...new Set(orders.map((o) => o.municipality).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, "es"),
+      ),
     [orders],
   );
+
+  const municipalitiesByZone = useMemo(() => {
+    const map: Record<string, string[]> = {};
+
+    orders.forEach((order) => {
+      const zone = order.zone?.trim();
+      const municipality = order.municipality?.trim();
+
+      if (!zone || !municipality) return;
+
+      if (!map[zone]) {
+        map[zone] = [];
+      }
+
+      if (!map[zone].includes(municipality)) {
+        map[zone].push(municipality);
+      }
+    });
+
+    Object.keys(map).forEach((zone) => {
+      map[zone] = [...map[zone]].sort((a, b) => a.localeCompare(b, "es"));
+    });
+
+    return map;
+  }, [orders]);
 
   const next12hCount = useMemo(
     () => orders.filter((o) => isWithinNext12Hours(o.deliveryDate)).length,
@@ -188,6 +217,7 @@ export const useDeliveryDashboard = () => {
     kpis,
     zones,
     municipalities,
+    municipalitiesByZone,
     next12hCount,
   };
 };

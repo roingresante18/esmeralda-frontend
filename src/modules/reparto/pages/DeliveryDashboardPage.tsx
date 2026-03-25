@@ -7,6 +7,8 @@ import {
   CircularProgress,
   Button,
   Box,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useDeliveryDashboard } from "../hooks/useDeliveryDashboard";
 import { DriverFiltersBar } from "../components/dashboard/DriverFiltersBar";
@@ -20,6 +22,7 @@ import { deliveryApi } from "../api/delivery.api";
 import { DeliveryOrderDetailPage } from "./DeliveryOrderDetailPage";
 import AltRouteIcon from "@mui/icons-material/AltRoute";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { useNavigate } from "react-router-dom";
 
 export default function DeliveryDashboardPage() {
@@ -33,6 +36,7 @@ export default function DeliveryDashboardPage() {
     kpis,
     zones,
     municipalities,
+    municipalitiesByZone,
     next12hCount,
   } = useDeliveryDashboard();
 
@@ -41,8 +45,12 @@ export default function DeliveryDashboardPage() {
   );
   const [actionError, setActionError] = useState<string | null>(null);
   const [startingOrderId, setStartingOrderId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const loggedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const safeRefresh = async () => {
     setActionError(null);
@@ -79,7 +87,7 @@ export default function DeliveryDashboardPage() {
     >
       <Stack spacing={1.5}>
         <DeliveryHeader
-          driverName="Carlos Gómez"
+          driverName={loggedUser?.full_name || "Usuario"}
           dateLabel={new Date().toLocaleDateString("es-AR")}
         />
 
@@ -88,22 +96,15 @@ export default function DeliveryDashboardPage() {
           spacing={1}
           sx={{ width: "100%" }}
         >
-          <Button
+          {/* <Button
             variant="outlined"
             startIcon={<AltRouteIcon />}
             onClick={() => navigate("/reparto/municipios")}
             fullWidth
           >
             Ver municipios
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AltRouteIcon />}
-            onClick={() => navigate("/reparto/cierre")}
-            fullWidth
-          >
-            Cierre de Reparto
-          </Button>
+          </Button> */}
+
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -111,6 +112,15 @@ export default function DeliveryDashboardPage() {
             fullWidth
           >
             Actualizar
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<FilterAltIcon />}
+            onClick={() => setFiltersOpen(true)}
+            fullWidth
+          >
+            Filtros
           </Button>
         </Stack>
 
@@ -130,12 +140,15 @@ export default function DeliveryDashboardPage() {
 
         <DeliveryKpiStrip kpis={kpis} />
 
-        <DriverFiltersBar
-          filters={filters}
-          setFilters={setFilters}
-          zones={zones}
-          municipalities={municipalities}
-        />
+        {!isMobile && (
+          <DriverFiltersBar
+            filters={filters}
+            setFilters={setFilters}
+            zones={zones}
+            municipalities={municipalities}
+            municipalitiesByZone={municipalitiesByZone}
+          />
+        )}
 
         {loading ? (
           <Stack alignItems="center" py={5}>
@@ -157,6 +170,29 @@ export default function DeliveryDashboardPage() {
           </Box>
         )}
       </Stack>
+
+      <Drawer
+        anchor={isMobile ? "bottom" : "right"}
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        PaperProps={{
+          sx: {
+            width: isMobile ? "100%" : 420,
+            borderTopLeftRadius: isMobile ? 16 : 0,
+            borderTopRightRadius: isMobile ? 16 : 0,
+            p: 1.2,
+          },
+        }}
+      >
+        <DriverFiltersBar
+          filters={filters}
+          setFilters={setFilters}
+          zones={zones}
+          municipalities={municipalities}
+          municipalitiesByZone={municipalitiesByZone}
+          onClose={() => setFiltersOpen(false)}
+        />
+      </Drawer>
 
       <Drawer
         anchor="right"

@@ -21,6 +21,10 @@ import {
   Divider,
   Card,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
 } from "@mui/material";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import TodayIcon from "@mui/icons-material/Today";
@@ -174,7 +178,245 @@ export default function LogisticsOrders() {
   const [error, setError] = useState<string | null>(null);
 
   const isRowSelected = (orderId: GridRowId) => selectionModel.ids.has(orderId);
+  const [openManifestDialog, setOpenManifestDialog] = useState(false);
+  const [manifestNotes, setManifestNotes] = useState("");
+  const [driverCashExtra, setDriverCashExtra] = useState<number>(0);
+  const [printingManifest, setPrintingManifest] = useState(false);
 
+  /* ============================================================
+    imprimir PANTALLA
+  ============================================================ */
+
+  const handleCreateAndPrintManifest = async () => {
+    try {
+      setPrintingManifest(true);
+      setError(null);
+
+      const selectedIds = orders
+        .filter((o) => selectionModel.ids.has(o.id))
+        .map((o) => o.id);
+
+      if (!selectedIds.length) {
+        setError("Seleccione al menos un pedido.");
+        return;
+      }
+
+      const createRes = await api.post("/orders/delivery-manifests", {
+        orderIds: selectedIds,
+        header_notes: manifestNotes,
+        driver_cash_extra: Number(driverCashExtra || 0),
+      });
+
+      const manifestId = createRes.data.id;
+
+      const printRes = await api.get(
+        `/orders/delivery-manifests/${manifestId}/print`,
+      );
+      const manifest = printRes.data;
+      const formatMoney = (value: number) =>
+        Number(value || 0).toLocaleString("es-AR", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+      const html = `
+      <html>
+        <head>
+          <title>Planilla de reparto #${manifest.id}</title>
+          <style>
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              padding: 18px;
+              color: #111;
+              font-size: 14px;
+            }
+
+            h1, h2, h3, h4, p {
+              margin: 0;
+            }
+
+            h1 {
+              font-size: 24px;
+              margin-bottom: 6px;
+            }
+
+            .small {
+              font-size: 14px;
+              color: #444;
+              margin-bottom: 10px;
+            }
+
+            .header-box {
+              border: 1px solid #ccc;
+              border-radius: 8px;
+              padding: 8px 10px;
+              margin-bottom: 14px;
+              font-size: 14px;
+              line-height: 1.5;
+            }
+
+            .header-row {
+              display: flex;
+              gap: 18px;
+              flex-wrap: wrap;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 8px;
+              font-size: 14px;
+              table-layout: fixed;
+            }
+
+            th, td {
+              border: 1px solid #ccc;
+              padding: 8px;
+              vertical-align: top;
+              text-align: left;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+            }
+
+            th {
+              background: #eaeaea;
+              font-weight: bold;
+              font-size: 14px;
+            }
+
+            .municipality-row td {
+              background: #f5f5f5;
+              font-weight: bold;
+              font-size: 15px;
+              padding: 10px 8px;
+            }
+
+            .text-right {
+              text-align: right;
+            }
+
+            .text-center {
+              text-align: center;
+            }
+
+            @media print {
+              body {
+                padding: 10px;
+              }
+
+              thead {
+                display: table-header-group;
+              }
+
+              tr {
+                page-break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Planilla de reparto</h1>
+
+          <p class="small">
+            <strong>Planilla #${manifest.id}</strong>
+            · Fecha: ${new Date(manifest.created_at).toLocaleString("es-AR")}
+          </p>
+
+          <div class="header-box">
+            <div class="header-row">
+              <div>
+                <strong>Observaciones:</strong> ${manifest.header_notes || "—"}
+              </div>
+              <div>
+                <strong>Monto extra chofer:</strong>
+                $${formatMoney(manifest.driver_cash_extra || 0)}
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <colgroup>
+              <col style="width: 8%" />
+              <col style="width: 22%" />
+              <col style="width: 14%" />
+              <col style="width: 12%" />
+              <col style="width: 12%" />
+              <col style="width: 12%" />
+              <col style="width: 20%" />
+            </colgroup>
+
+            <thead>
+              <tr>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th>Celular</th>
+                <th>Total $</th>
+                <th>Transfe.</th>
+                <th>Efectivo</th>
+                <th>Observaciones</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${manifest.groups
+                .map(
+                  (group: any) => `
+                    <tr class="municipality-row">
+                      <td colspan="7">${group.municipality}</td>
+                    </tr>
+
+                    ${group.items
+                      .map(
+                        (item: any) => `
+                          <tr>
+                            <td class="text-center">${item.order_id}</td>
+                            <td>${item.client_name}</td>
+                            <td>${item.client_phone || ""}</td>
+                            <td >$${formatMoney(item.total_to_collect || 0)}</td>
+                            <td >$</td>
+                            <td >$</td>
+                            <td></td>
+                          </tr>
+                        `,
+                      )
+                      .join("")}
+                  `,
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+      const win = window.open("", "_blank");
+      if (!win) {
+        setError("El navegador bloqueó la ventana de impresión.");
+        return;
+      }
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+
+      setTimeout(() => {
+        win.print();
+      }, 300);
+
+      setOpenManifestDialog(false);
+      setManifestNotes("");
+      setDriverCashExtra(0);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo generar la planilla de reparto.");
+    } finally {
+      setPrintingManifest(false);
+    }
+  };
   /* ============================================================
      FETCH - Solo QUALITY_CHECKED
   ============================================================ */
@@ -762,7 +1004,15 @@ export default function LogisticsOrders() {
                 >
                   Seleccionar visibles
                 </Button>
-
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  onClick={() => setOpenManifestDialog(true)}
+                  disabled={!selectionModel.ids.size}
+                  fullWidth={isMobile}
+                >
+                  Generar planilla
+                </Button>
                 <Button
                   variant="contained"
                   startIcon={<AssignmentTurnedInIcon />}
@@ -827,7 +1077,45 @@ export default function LogisticsOrders() {
           </Box>
         )}
       </Stack>
+      <Dialog
+        open={openManifestDialog}
+        onClose={() => setOpenManifestDialog(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Generar planilla de reparto</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Observaciones generales"
+              multiline
+              minRows={3}
+              value={manifestNotes}
+              onChange={(e) => setManifestNotes(e.target.value)}
+              fullWidth
+              placeholder="Ej: pasar a retirar pedido en ..."
+            />
 
+            <TextField
+              label="Monto extra para chofer"
+              type="number"
+              value={driverCashExtra}
+              onChange={(e) => setDriverCashExtra(Number(e.target.value) || 0)}
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenManifestDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateAndPrintManifest}
+            disabled={printingManifest}
+          >
+            {printingManifest ? "Generando..." : "Generar e imprimir"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <ConfirmDeliveryDataDialog
         open={Boolean(selectedOrder)}
         order={selectedOrder ? mapOrderToDialogInput(selectedOrder) : null}

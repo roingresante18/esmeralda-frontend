@@ -145,9 +145,6 @@ export function useOrder(canEdit: boolean) {
     try {
       let orderId = order.orderId;
 
-      /* ==========================
-       CREATE
-    ========================== */
       if (!orderId) {
         const payload = {
           clientId: order.clientId,
@@ -169,11 +166,8 @@ export function useOrder(canEdit: boolean) {
 
         alert("✅ Pedido creado con éxito");
       } else {
-        /* ==========================
-   UPDATE
-========================== */
         const payload = {
-          clientId: order.clientId, // ⭐ necesario
+          clientId: order.clientId,
           notes: order.notes || undefined,
           items: order.items.map((i) => ({
             productId: i.productId,
@@ -187,9 +181,6 @@ export function useOrder(canEdit: boolean) {
         alert("✅ Pedido actualizado con éxito");
       }
 
-      /* ==========================
-       PAGOS
-    ========================== */
       if (payment && orderId) {
         if (payment.cash > 0) {
           await api.patch(`/orders/${orderId}/payment`, {
@@ -206,9 +197,12 @@ export function useOrder(canEdit: boolean) {
           });
         }
       }
+
+      return orderId;
     } catch (e) {
       console.error("ERROR SAVE ORDER", e);
       alert("❌ Error al guardar pedido");
+      throw e;
     }
   };
 

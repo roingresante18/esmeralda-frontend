@@ -5,6 +5,9 @@ import {
   Paper,
   FormControlLabel,
   Switch,
+  Typography,
+  Button,
+  Divider,
 } from "@mui/material";
 import type {
   DeliveryFilters,
@@ -16,6 +19,8 @@ interface Props {
   setFilters: React.Dispatch<React.SetStateAction<DeliveryFilters>>;
   zones: string[];
   municipalities: string[];
+  municipalitiesByZone: Record<string, string[]>;
+  onClose?: () => void;
 }
 
 const statusOptions: Array<{ value: DeliveryStatus | "ALL"; label: string }> = [
@@ -33,22 +38,41 @@ export const DriverFiltersBar = ({
   setFilters,
   zones,
   municipalities,
+  municipalitiesByZone,
+  onClose,
 }: Props) => {
+  const filteredMunicipalities = filters.zone
+    ? (municipalitiesByZone[filters.zone] ?? [])
+    : municipalities;
+
+  const handleClearFilters = () => {
+    setFilters((prev) => ({
+      ...prev,
+      date: new Date().toISOString().split("T")[0],
+      zone: undefined,
+      municipality: undefined,
+      status: "ALL",
+      onlyToday: true,
+      onlyNext12h: false,
+    }));
+  };
+
   return (
     <Paper
       elevation={0}
       sx={{
         p: 1.5,
         borderRadius: 3,
-        position: "sticky",
-        top: 0,
-        zIndex: 5,
         border: "1px solid",
         borderColor: "divider",
         backgroundColor: "background.paper",
       }}
     >
-      <Stack spacing={1.2}>
+      <Stack spacing={1.25}>
+        <Typography variant="subtitle2" fontWeight={800}>
+          Filtros de reparto
+        </Typography>
+
         <TextField
           size="small"
           type="date"
@@ -74,6 +98,7 @@ export const DriverFiltersBar = ({
             setFilters((prev) => ({
               ...prev,
               zone: e.target.value || undefined,
+              municipality: undefined,
             }))
           }
           fullWidth
@@ -98,11 +123,21 @@ export const DriverFiltersBar = ({
             }))
           }
           fullWidth
+          disabled={
+            Boolean(filters.zone) && filteredMunicipalities.length === 0
+          }
+          helperText={
+            filters.zone
+              ? filteredMunicipalities.length === 0
+                ? "No hay municipios para la zona elegida"
+                : "Solo municipios de la zona elegida"
+              : "Podés elegir cualquier municipio"
+          }
         >
           <MenuItem value="">Todos</MenuItem>
-          {municipalities.map((m) => (
-            <MenuItem key={m} value={m}>
-              {m}
+          {filteredMunicipalities.map((municipality) => (
+            <MenuItem key={municipality} value={municipality}>
+              {municipality}
             </MenuItem>
           ))}
         </TextField>
@@ -127,12 +162,21 @@ export const DriverFiltersBar = ({
           ))}
         </TextField>
 
+        <Divider sx={{ my: 0.25 }} />
+
         <FormControlLabel
+          sx={{ m: 0 }}
           control={
             <Switch
               checked={Boolean(filters.onlyToday)}
               onChange={(_, checked) =>
-                setFilters((prev) => ({ ...prev, onlyToday: checked }))
+                setFilters((prev) => ({
+                  ...prev,
+                  onlyToday: checked,
+                  ...(checked
+                    ? { date: new Date().toISOString().split("T")[0] }
+                    : {}),
+                }))
               }
             />
           }
@@ -140,16 +184,32 @@ export const DriverFiltersBar = ({
         />
 
         <FormControlLabel
+          sx={{ m: 0 }}
           control={
             <Switch
               checked={Boolean(filters.onlyNext12h)}
               onChange={(_, checked) =>
-                setFilters((prev) => ({ ...prev, onlyNext12h: checked }))
+                setFilters((prev) => ({
+                  ...prev,
+                  onlyNext12h: checked,
+                }))
               }
             />
           }
           label="Próximas 12h"
         />
+
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" fullWidth onClick={handleClearFilters}>
+            Limpiar
+          </Button>
+
+          {onClose && (
+            <Button variant="contained" fullWidth onClick={onClose}>
+              Aplicar
+            </Button>
+          )}
+        </Stack>
       </Stack>
     </Paper>
   );
