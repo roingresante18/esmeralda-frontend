@@ -49,13 +49,13 @@ export const buildInitialDeliveryDataValues = (
     toValidNumber(order.client?.gps_longitude) ??
     toValidNumber(order.client?.longitude);
 
-  const clientGps =
+  const clientGps: GPSPoint | null =
     order.customerGps ??
     (clientLat != null && clientLng != null
       ? {
-          lat: clientLat,
-          lng: clientLng,
-          source: "CUSTOMER_PROFILE" as const,
+          latitude: clientLat,
+          longitude: clientLng,
+          source: "CUSTOMER_PROFILE",
           capturedAt: new Date().toISOString(),
         }
       : null);

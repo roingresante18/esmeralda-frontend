@@ -8,7 +8,6 @@ import {
   Typography,
 } from "@mui/material";
 import RoomIcon from "@mui/icons-material/Room";
-import MyLocationIcon from "@mui/icons-material/MyLocation";
 import type {
   DeliveryDataFormValues,
   PaymentMethod,
@@ -20,36 +19,35 @@ interface Props {
   values: DeliveryDataFormValues;
   errors: DeliveryDataFormErrors;
   loading?: boolean;
-  gpsLoading?: boolean;
   gpsError?: string | null;
   onChange: <K extends keyof DeliveryDataFormValues>(
     field: K,
     value: DeliveryDataFormValues[K],
   ) => void;
-  onUseCustomerGps: () => void;
-  onCaptureOrderGps: () => void;
+  onOpenGpsMap: () => void;
 }
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CASH", label: "Efectivo" },
   { value: "TRANSFER", label: "Transferencia" },
-  { value: "BOTH", label: "Ambos" },
 ];
 
 const gpsLabel = (gps?: GPSPoint | null) => {
-  if (!gps) return "Sin GPS";
-  return `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}`;
+  const lat = gps?.latitude;
+  const lng = gps?.longitude;
+
+  if (lat == null || lng == null) return "Sin GPS definido";
+
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 };
 
 export const OrderDeliveryMetaForm = ({
   values,
   errors,
   loading,
-  gpsLoading,
   gpsError,
   onChange,
-  onUseCustomerGps,
-  onCaptureOrderGps,
+  onOpenGpsMap,
 }: Props) => {
   return (
     <Stack spacing={2}>
@@ -113,11 +111,11 @@ export const OrderDeliveryMetaForm = ({
             label="Municipio"
             size="small"
             value={values.municipality}
-            onChange={(e) => onChange("municipality", e.target.value)}
             error={Boolean(errors.municipality)}
-            helperText={errors.municipality}
+            helperText={errors.municipality || "Dato informativo"}
             fullWidth
-            disabled={loading}
+            InputProps={{ readOnly: true }}
+            disabled
           />
         </Grid>
 
@@ -126,11 +124,11 @@ export const OrderDeliveryMetaForm = ({
             label="Zona"
             size="small"
             value={values.zone}
-            onChange={(e) => onChange("zone", e.target.value)}
             error={Boolean(errors.zone)}
-            helperText={errors.zone}
+            helperText={errors.zone || "Dato informativo"}
             fullWidth
-            disabled={loading}
+            InputProps={{ readOnly: true }}
+            disabled
           />
         </Grid>
 
@@ -157,55 +155,28 @@ export const OrderDeliveryMetaForm = ({
           borderColor: "divider",
         }}
       >
-        <Typography fontWeight={800}>GPS del cliente</Typography>
+        <Typography fontWeight={800}>GPS de entrega</Typography>
+
         <Typography variant="body2" color="text.secondary">
           {gpsLabel(values.customerGps)}
         </Typography>
 
         <Button
-          variant="outlined"
-          startIcon={<RoomIcon />}
-          onClick={onUseCustomerGps}
-          disabled={!values.customerGps || loading}
-          fullWidth
-        >
-          Usar GPS del cliente como GPS operativo
-        </Button>
-      </Stack>
-
-      <Stack
-        spacing={1}
-        sx={{
-          p: 1.5,
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        <Typography fontWeight={800}>GPS operativo del pedido</Typography>
-        <Typography variant="body2" color="text.secondary">
-          {gpsLabel(values.orderGps)}
-        </Typography>
-
-        <Button
           variant="contained"
-          startIcon={<MyLocationIcon />}
-          onClick={onCaptureOrderGps}
-          disabled={loading || gpsLoading}
+          startIcon={<RoomIcon />}
+          onClick={onOpenGpsMap}
+          disabled={loading}
           fullWidth
         >
-          {gpsLoading
-            ? "Capturando GPS..."
-            : "Capturar / actualizar GPS operativo"}
+          {values.customerGps ? "Modificar GPS" : "Definir GPS"}
         </Button>
 
         {gpsError ? <Alert severity="error">{gpsError}</Alert> : null}
       </Stack>
 
-      {!values.customerGps && !values.orderGps ? (
+      {!values.customerGps ? (
         <Alert severity="info" sx={{ borderRadius: 3 }}>
-          Este pedido no tiene GPS precargado. Podés guardarlo ahora para
-          mejorar el recorrido.
+          Definí el GPS del punto de entrega para facilitar el reparto.
         </Alert>
       ) : null}
     </Stack>

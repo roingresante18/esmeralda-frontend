@@ -36,8 +36,8 @@ export type DeliveryRescheduleReason =
   | "OTHER";
 
 export interface GPSPoint {
-  lat: number;
-  lng: number;
+  latitude: number;
+  longitude: number;
   accuracy?: number;
   source?: GpsSource;
   capturedAt?: string;

@@ -26,6 +26,7 @@ export interface OrderDraft {
   clientAddress?: string;
   clientLatitude?: number;
   clientLongitude?: number;
+  deliveryAddress?: string;
   items: CartItem[];
   status: OrderStatus;
   createdAt: string;
@@ -86,7 +87,7 @@ export type DraftOrderApi = {
   municipality_snapshot: string;
   total_amount?: number;
   payment_confirmed?: boolean;
-
+  delivery_address_snapshot?: string;
   client?: {
     id: number;
     name: string;

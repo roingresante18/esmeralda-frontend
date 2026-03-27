@@ -37,6 +37,7 @@ import PaidIcon from "@mui/icons-material/Paid";
 import api from "../../api/api";
 import { formatDateOnlyAR } from "../../utils/date";
 import { ConfirmDeliveryDataDialog } from "../../modules/reparto/components/logistics/ConfirmDeliveryDataDialog";
+import { rowGap } from "@mui/system";
 
 /* ============================================================
    TYPES
@@ -564,8 +565,8 @@ export default function LogisticsOrders() {
       {
         field: "id",
         headerName: "Pedido",
-        flex: 0.4,
-        minWidth: 90,
+        flex: 0.3,
+        minWidth: 65,
       },
       {
         field: "client",
@@ -585,15 +586,15 @@ export default function LogisticsOrders() {
       {
         field: "zone_snapshot",
         headerName: "Zona",
-        flex: 0.8,
-        minWidth: 120,
+        flex: 0.2,
+        minWidth: 50,
         valueGetter: (_value, row) => row.zone_snapshot ?? "Sin zona",
       },
       {
         field: "delivery_date",
         headerName: "Fecha entrega",
         flex: 0.9,
-        minWidth: 150,
+        minWidth: 120,
         valueGetter: (_value, row) =>
           row.delivery_date ? formatDateOnlyAR(row.delivery_date) : "Sin fecha",
       },
@@ -670,21 +671,21 @@ export default function LogisticsOrders() {
           />
         ),
       },
-      {
-        field: "status",
-        headerName: "Estado",
-        flex: 0.8,
-        minWidth: 120,
-        sortable: false,
-        renderCell: () => (
-          <Chip
-            icon={<LocalShippingIcon />}
-            label="Controlado"
-            color="info"
-            size="small"
-          />
-        ),
-      },
+      // {
+      //   field: "status",
+      //   headerName: "Estado",
+      //   flex: 0.8,
+      //   minWidth: 120,
+      //   sortable: false,
+      //   renderCell: () => (
+      //     <Chip
+      //       icon={<LocalShippingIcon />}
+      //       label="Controlado"
+      //       color="info"
+      //       size="small"
+      //     />
+      //   ),
+      // },
       {
         field: "actions",
         headerName: "Acciones",
@@ -897,22 +898,20 @@ export default function LogisticsOrders() {
   ============================================================ */
 
   return (
-    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
-      <Stack spacing={2.5}>
+    <Container maxWidth="xl" sx={{ py: { xs: 1, md: 0.5 } }}>
+      <Stack spacing={0.2}>
         <Stack
           direction={isMobile ? "column" : "row"}
           justifyContent="space-between"
           alignItems={isMobile ? "flex-start" : "center"}
-          spacing={2}
+          spacing={1}
         >
-          <Box>
-            <Typography variant="h4" fontWeight="bold">
-              Logística
-            </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
-              Usuario: {loggedUser?.full_name || "Usuario"}
-            </Typography>
-          </Box>
+          <Typography variant="subtitle1" color="text.secondary">
+            Usuario: {loggedUser?.full_name || "Usuario"}
+          </Typography>
+          <Typography variant="h4" fontWeight="bold">
+            Logística
+          </Typography>
 
           <Button variant="outlined" onClick={() => navigate(-1)}>
             ← Volver
@@ -930,7 +929,7 @@ export default function LogisticsOrders() {
             <Stack
               direction={isMobile ? "column" : "row"}
               spacing={1.2}
-              justifyContent="space-between"
+              justifyContent="flex-start"
               alignItems={isMobile ? "stretch" : "center"}
             >
               <Stack direction="row" spacing={1} alignItems="center">
@@ -940,18 +939,6 @@ export default function LogisticsOrders() {
                 </Typography>
               </Stack>
 
-              <TextField
-                type="date"
-                size="small"
-                label="Filtrar por fecha"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: isMobile ? "100%" : 220 }}
-              />
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap">
               <Chip label={`Hoy: ${todayCount}`} color="primary" />
               <Chip label={`Próx. 12hs: ${next12HoursCount}`} color="warning" />
               <Chip
@@ -966,7 +953,19 @@ export default function LogisticsOrders() {
                 label={`Con adelanto: ${paidOrdersCount}`}
                 color="secondary"
               />
+
+              <TextField
+                type="date"
+                size="small"
+                label="Filtrar por fecha"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: isMobile ? "100%" : 220 }}
+              />
             </Stack>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap"></Stack>
 
             <Divider />
 
@@ -1057,7 +1056,7 @@ export default function LogisticsOrders() {
               }
               disableRowSelectionOnClick
               rowHeight={64}
-              pageSizeOptions={[10, 25, 50]}
+              pageSizeOptions={[10, 25, 50, 100]}
               initialState={{
                 pagination: {
                   paginationModel: {

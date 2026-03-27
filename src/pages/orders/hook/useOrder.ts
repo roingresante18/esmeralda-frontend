@@ -18,11 +18,14 @@ export function useOrder(canEdit: boolean) {
     clientAddress: "",
     clientLatitude: undefined,
     clientLongitude: undefined,
+    deliveryAddress: "",
     status: "QUOTATION",
     createdAt: new Date().toISOString(),
     deliveryDate: "",
     notes: "",
     municipality_snapshot: "",
+    paymentSummary: undefined,
+    payments: [],
   });
 
   /* ============================================================
@@ -90,7 +93,7 @@ export function useOrder(canEdit: boolean) {
   };
 
   /* ============================================================
-     CARGAR BORRADOR
+     CARGAR BORRADOR / PEDIDO RECUPERADO
   ============================================================ */
 
   const loadDraftOrder = (draft: DraftOrderApi) => {
@@ -117,6 +120,7 @@ export function useOrder(canEdit: boolean) {
         draft.client?.longitude != null
           ? Number(draft.client.longitude)
           : undefined,
+      deliveryAddress: draft.delivery_address_snapshot ?? "",
       items,
       status: draft.status,
       createdAt: draft.created_at,
@@ -129,7 +133,7 @@ export function useOrder(canEdit: boolean) {
   };
 
   /* ============================================================
-     GUARDAR ORDEN
+     GUARDAR ORDEN / COTIZACIÓN
   ============================================================ */
 
   const saveOrder = async (payment?: {

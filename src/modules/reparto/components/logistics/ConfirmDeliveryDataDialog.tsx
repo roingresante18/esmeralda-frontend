@@ -16,6 +16,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 
 import { OrderDeliveryMetaForm } from "./OrderDeliveryMetaForm";
+import DeliveryGpsMapDialog from "./DeliveryGpsMapDialog";
 import { buildInitialDeliveryDataValues } from "../../utils/delivery.form.helpers";
 import {
   hasDeliveryDataErrors,
@@ -23,13 +24,11 @@ import {
   type DeliveryDataFormErrors,
 } from "../../utils/delivery.confirmation.validation";
 import type {
-  ConfirmDeliveryDataPayload,
   DeliveryDataFormValues,
   GPSPoint,
   PaymentMethod,
 } from "../../types/delivery.types";
 import { deliveryApi } from "../../api/delivery.api";
-import { useGeoLocationCapture } from "../../hooks/useGeoLocationCapture";
 
 type PaymentSummary = {
   cash: number;
@@ -106,6 +105,12 @@ const toValidNumber = (value?: number | string | null) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const toIsoStringOrNull = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
 export const ConfirmDeliveryDataDialog = ({
   open,
   order,
@@ -118,6 +123,7 @@ export const ConfirmDeliveryDataDialog = ({
     const clientLat =
       toValidNumber(order.client?.gps_latitude) ??
       toValidNumber(order.client?.latitude);
+
     const clientLng =
       toValidNumber(order.client?.gps_longitude) ??
       toValidNumber(order.client?.longitude);
@@ -141,8 +147,7 @@ export const ConfirmDeliveryDataDialog = ({
           ? {
               latitude: clientLat,
               longitude: clientLng,
-              source: "CLIENT",
-              capturedAt: undefined,
+              source: "CUSTOMER_PROFILE",
             }
           : null),
       payments: order.payments ?? [],
@@ -169,13 +174,14 @@ export const ConfirmDeliveryDataDialog = ({
   const [errors, setErrors] = useState<DeliveryDataFormErrors>({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const { captureGps, gpsError, loadingGps } = useGeoLocationCapture();
+  const [gpsError] = useState<string | null>(null);
+  const [openGpsMap, setOpenGpsMap] = useState(false);
 
   useEffect(() => {
     setValues(initialValues);
     setErrors({});
     setSubmitError(null);
+    setOpenGpsMap(false);
   }, [initialValues, open]);
 
   if (!normalizedOrder) return null;
@@ -201,30 +207,14 @@ export const ConfirmDeliveryDataDialog = ({
     }
   };
 
-  const handleUseCustomerGps = () => {
-    if (!values.customerGps) return;
-
+  const handleConfirmGpsFromMap = (point: GPSPoint) => {
     setValues((prev) => ({
       ...prev,
-      orderGps: {
-        ...values.customerGps!,
-        source: "ORDER_CONFIRMED",
-        capturedAt: new Date().toISOString(),
-      },
+      customerGps: point,
+      orderGps: point,
     }));
-  };
 
-  const handleCaptureOrderGps = async () => {
-    const point = await captureGps();
-    if (!point) return;
-
-    setValues((prev) => ({
-      ...prev,
-      orderGps: {
-        ...point,
-        source: "ORDER_CONFIRMED",
-      },
-    }));
+    setOpenGpsMap(false);
   };
 
   const handleSubmit = async () => {
@@ -234,32 +224,76 @@ export const ConfirmDeliveryDataDialog = ({
 
     if (hasDeliveryDataErrors(nextErrors)) return;
 
-    const payload: ConfirmDeliveryDataPayload = {
-      orderId: normalizedOrder.id,
-      deliveryDate: values.deliveryDate,
+    if (values.paymentMethod === "BOTH") {
+      setSubmitError(
+        'La opción "Ambos" no está disponible para confirmar datos de reparto.',
+      );
+      return;
+    }
+
+    const isoDeliveryDate = toIsoStringOrNull(values.deliveryDate);
+
+    if (!isoDeliveryDate) {
+      setSubmitError("La fecha de entrega no es válida.");
+      return;
+    }
+
+    const payload = {
+      deliveryDate: isoDeliveryDate,
       paymentMethod: values.paymentMethod as PaymentMethod,
       address: values.address,
       municipality: values.municipality,
       zone: values.zone,
-      customerGps: values.customerGps ?? null,
-      orderGps: values.orderGps ?? values.customerGps ?? null,
+      customerGps: values.customerGps
+        ? {
+            latitude: values.customerGps.latitude,
+            longitude: values.customerGps.longitude,
+            accuracy: values.customerGps.accuracy,
+            source: values.customerGps.source,
+            capturedAt: values.customerGps.capturedAt,
+          }
+        : null,
+      orderGps: values.customerGps
+        ? {
+            latitude: values.customerGps.latitude,
+            longitude: values.customerGps.longitude,
+            accuracy: values.customerGps.accuracy,
+            source: values.customerGps.source,
+            capturedAt: values.customerGps.capturedAt,
+          }
+        : null,
       notes: values.notes,
     };
 
     try {
       setSaving(true);
-      await deliveryApi.confirmDeliveryData(payload);
+      console.log("Payload confirmDeliveryData:", payload);
+      console.log("Order ID:", normalizedOrder.id);
+
+      await deliveryApi.confirmDeliveryData(normalizedOrder.id, payload);
       onSuccess();
-    } catch (error) {
-      console.error(error);
-      setSubmitError("No se pudieron guardar los datos de entrega.");
+    } catch (error: any) {
+      console.error("Error confirmando datos de entrega:", error);
+
+      const backendMessage =
+        error?.response?.data?.message?.message ??
+        error?.response?.data?.message ??
+        error?.response?.data;
+
+      console.log("Detalle backend:", backendMessage);
+
+      setSubmitError(
+        Array.isArray(backendMessage)
+          ? backendMessage.join(" | ")
+          : typeof backendMessage === "string"
+            ? backendMessage
+            : "No se pudieron guardar los datos de entrega.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const hasCustomerGps = Boolean(values.customerGps);
-  const hasOperationalGps = Boolean(values.orderGps);
   const paymentSummary = normalizedOrder.payment_summary ?? {
     cash: 0,
     transfer: 0,
@@ -268,178 +302,169 @@ export const ConfirmDeliveryDataDialog = ({
     other: 0,
     total_paid: 0,
   };
+
   const payments = normalizedOrder.payments ?? [];
 
   return (
-    <Dialog
-      open={open}
-      onClose={saving ? undefined : onClose}
-      fullWidth
-      maxWidth="sm"
-      PaperProps={{
-        sx: {
-          borderRadius: { xs: 0, sm: 3 },
-          minHeight: { xs: "100dvh", sm: "auto" },
-          m: { xs: 0, sm: 2 },
-        },
-      }}
-    >
-      <DialogTitle sx={{ pb: 1 }}>
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <Stack spacing={0.3}>
-            <Typography variant="h6" fontWeight={900}>
-              Confirmar datos de reparto
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Pedido #{normalizedOrder.id} ·{" "}
-              {normalizedOrder.client?.name ?? "Cliente"}
-            </Typography>
-          </Stack>
-
-          <IconButton onClick={onClose} disabled={saving}>
-            <CloseIcon />
-          </IconButton>
-        </Stack>
-      </DialogTitle>
-
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          <Alert severity="info" sx={{ borderRadius: 3 }}>
-            Para pasar este pedido a reparto debe tener fecha de entrega,
-            dirección confirmada y método de pago definido para esta etapa.
-          </Alert>
-
-          {hasCustomerGps ? (
-            <Alert severity="success" sx={{ borderRadius: 3 }}>
-              Se encontró GPS guardado del cliente. Podés reutilizarlo como GPS
-              operativo del pedido o capturar uno nuevo.
-            </Alert>
-          ) : (
-            <Alert severity="warning" sx={{ borderRadius: 3 }}>
-              El cliente no tiene GPS guardado. Podés capturar uno ahora para
-              mejorar navegación y trazabilidad del reparto.
-            </Alert>
-          )}
-
-          {!hasOperationalGps ? (
-            <Alert severity="warning" sx={{ borderRadius: 3 }}>
-              Este pedido todavía no tiene GPS operativo confirmado.
-            </Alert>
-          ) : null}
-
-          {payments.length > 0 && (
-            <Paper
-              sx={{
-                p: 1.5,
-                bgcolor: "#f8fafc",
-                borderLeft: "4px solid #7b1fa2",
-              }}
-            >
-              <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
-                💰 Pagos ya registrados
-              </Typography>
-
-              <Stack spacing={0.75}>
-                {payments.map((payment) => (
-                  <Box
-                    key={payment.id}
-                    sx={{
-                      p: 1,
-                      borderRadius: 1.5,
-                      bgcolor: "#fff",
-                      border: "1px solid #e0e0e0",
-                    }}
-                  >
-                    <Typography variant="body2">
-                      <b>Monto:</b> ${Number(payment.amount).toFixed(2)}
-                    </Typography>
-                    <Typography variant="body2">
-                      <b>Método:</b> {payment.method}
-                    </Typography>
-                    <Typography variant="body2">
-                      <b>Tipo:</b> {payment.type}
-                    </Typography>
-                    <Typography variant="body2">
-                      <b>Estado:</b> {payment.status}
-                    </Typography>
-                    {payment.reference && (
-                      <Typography variant="body2">
-                        <b>Referencia:</b> {payment.reference}
-                      </Typography>
-                    )}
-                  </Box>
-                ))}
-              </Stack>
-
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                <b>Total pagado:</b> $
-                {Number(paymentSummary.total_paid ?? 0).toFixed(2)}
-              </Typography>
-
-              {Number(paymentSummary.cash ?? 0) > 0 && (
-                <Typography variant="body2">
-                  <b>Efectivo:</b> ${Number(paymentSummary.cash).toFixed(2)}
-                </Typography>
-              )}
-
-              {Number(paymentSummary.transfer ?? 0) > 0 && (
-                <Typography variant="body2">
-                  <b>Transferencia:</b> $
-                  {Number(paymentSummary.transfer).toFixed(2)}
-                </Typography>
-              )}
-            </Paper>
-          )}
-
-          {submitError ? (
-            <Alert severity="error" sx={{ borderRadius: 3 }}>
-              {submitError}
-            </Alert>
-          ) : null}
-
-          <OrderDeliveryMetaForm
-            values={values}
-            errors={errors}
-            loading={saving}
-            gpsLoading={loadingGps}
-            gpsError={gpsError}
-            onChange={handleChange}
-            onUseCustomerGps={handleUseCustomerGps}
-            onCaptureOrderGps={handleCaptureOrderGps}
-          />
-        </Stack>
-      </DialogContent>
-
-      <DialogActions
-        sx={{
-          p: 2,
-          pt: 1.5,
-          flexDirection: { xs: "column-reverse", sm: "row" },
-          gap: 1,
+    <>
+      <Dialog
+        open={open}
+        onClose={saving ? undefined : onClose}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: { xs: 0, sm: 3 },
+            minHeight: { xs: "100dvh", sm: "auto" },
+            m: { xs: 0, sm: 2 },
+          },
         }}
       >
-        <Button
-          onClick={onClose}
-          disabled={saving}
-          fullWidth={false}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
-        >
-          Cancelar
-        </Button>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <Stack spacing={0.3}>
+              <Typography variant="h6" fontWeight={900}>
+                Confirmar datos de reparto
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Pedido #{normalizedOrder.id} ·{" "}
+                {normalizedOrder.client?.name ?? "Cliente"}
+              </Typography>
+            </Stack>
 
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={saving || loadingGps}
-          sx={{ width: { xs: "100%", sm: "auto" }, minHeight: 44 }}
+            <IconButton onClick={onClose} disabled={saving}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Alert severity="info" sx={{ borderRadius: 3 }}>
+              Para pasar este pedido a reparto debe tener fecha de entrega,
+              dirección confirmada, método de pago definido y GPS de entrega.
+            </Alert>
+
+            {payments.length > 0 && (
+              <Paper
+                sx={{
+                  p: 1.5,
+                  bgcolor: "#f8fafc",
+                  borderLeft: "4px solid #7b1fa2",
+                }}
+              >
+                <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
+                  💰 Pagos ya registrados
+                </Typography>
+
+                <Stack spacing={0.75}>
+                  {payments.map((payment) => (
+                    <Box
+                      key={payment.id}
+                      sx={{
+                        p: 1,
+                        borderRadius: 1.5,
+                        bgcolor: "#fff",
+                        border: "1px solid #e0e0e0",
+                      }}
+                    >
+                      <Typography variant="body2">
+                        <b>Monto:</b> ${Number(payment.amount).toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2">
+                        <b>Método:</b> {payment.method}
+                      </Typography>
+                      <Typography variant="body2">
+                        <b>Tipo:</b> {payment.type}
+                      </Typography>
+                      <Typography variant="body2">
+                        <b>Estado:</b> {payment.status}
+                      </Typography>
+                      {payment.reference && (
+                        <Typography variant="body2">
+                          <b>Referencia:</b> {payment.reference}
+                        </Typography>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  <b>Total pagado:</b> $
+                  {Number(paymentSummary.total_paid ?? 0).toFixed(2)}
+                </Typography>
+
+                {Number(paymentSummary.cash ?? 0) > 0 && (
+                  <Typography variant="body2">
+                    <b>Efectivo:</b> ${Number(paymentSummary.cash).toFixed(2)}
+                  </Typography>
+                )}
+
+                {Number(paymentSummary.transfer ?? 0) > 0 && (
+                  <Typography variant="body2">
+                    <b>Transferencia:</b> $
+                    {Number(paymentSummary.transfer).toFixed(2)}
+                  </Typography>
+                )}
+              </Paper>
+            )}
+
+            {submitError ? (
+              <Alert severity="error" sx={{ borderRadius: 3 }}>
+                {submitError}
+              </Alert>
+            ) : null}
+
+            <OrderDeliveryMetaForm
+              values={values}
+              errors={errors}
+              loading={saving}
+              gpsError={gpsError}
+              onChange={handleChange}
+              onOpenGpsMap={() => setOpenGpsMap(true)}
+            />
+          </Stack>
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            p: 2,
+            pt: 1.5,
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            gap: 1,
+          }}
         >
-          {saving ? <CircularProgress size={20} /> : "Guardar y confirmar"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          <Button
+            onClick={onClose}
+            disabled={saving}
+            fullWidth={false}
+            sx={{ width: { xs: "100%", sm: "auto" } }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={saving}
+            sx={{ width: { xs: "100%", sm: "auto" }, minHeight: 44 }}
+          >
+            {saving ? <CircularProgress size={20} /> : "Guardar y confirmar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <DeliveryGpsMapDialog
+        open={openGpsMap}
+        onClose={() => setOpenGpsMap(false)}
+        initialGps={values.customerGps ?? values.orderGps ?? null}
+        clientReferenceGps={normalizedOrder.customerGps ?? null}
+        onConfirm={handleConfirmGpsFromMap}
+      />
+    </>
   );
 };
