@@ -334,7 +334,7 @@ export default function DepositOrders() {
     try {
       const selectedIds = selectionModel.ids;
       const ordersToPrint = filteredOrders.filter((o) => selectedIds.has(o.id));
-
+      console.log("ORDER ITEM:", ordersToPrint[0]?.items?.[0]);
       const doc = (
         <Document>
           {ordersToPrint.map((order) => (
