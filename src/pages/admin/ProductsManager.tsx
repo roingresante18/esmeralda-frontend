@@ -62,6 +62,7 @@ interface Product {
   rubro_id: number | "";
   is_active: boolean;
   rubro?: Rubro | null;
+
   is_combo?: boolean;
   combo_discount_percent?: number;
 }
@@ -189,12 +190,8 @@ const ProductsManager = () => {
   );
   const [createMissing, setCreateMissing] = useState(false);
 
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: "success" | "error";
-  }>({ open: false, message: "", severity: "success" });
   const [openComboDialog, setOpenComboDialog] = useState(false);
+  const [editingComboId, setEditingComboId] = useState<number | null>(null);
   const [comboName, setComboName] = useState("");
   const [comboDescription, setComboDescription] = useState("");
   const [comboDiscount, setComboDiscount] = useState(0);
@@ -202,57 +199,12 @@ const ProductsManager = () => {
     { product: Product; quantity: number }[]
   >([]);
   const [savingCombo, setSavingCombo] = useState(false);
-  const comboSubtotal = useMemo(() => {
-    return comboItems.reduce((sum, item) => {
-      return sum + Number(item.product.sale_price || 0) * item.quantity;
-    }, 0);
-  }, [comboItems]);
-
-  const comboTotal = useMemo(() => {
-    return Number((comboSubtotal * (1 - comboDiscount / 100)).toFixed(2));
-  }, [comboSubtotal, comboDiscount]);
-
-  const availableComboProducts = products.filter((p) => !p.is_combo);
-
-  const addProductToCombo = (product: Product) => {
-    if (!product.id) return;
-
-    setComboItems((prev) => {
-      const exists = prev.find((item) => item.product.id === product.id);
-
-      if (exists) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        );
-      }
-
-      return [...prev, { product, quantity: 1 }];
-    });
-  };
-
-  const updateComboItemQuantity = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
-      setComboItems((prev) =>
-        prev.filter((item) => item.product.id !== productId),
-      );
-      return;
-    }
-
-    setComboItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item,
-      ),
-    );
-  };
-
-  const resetComboForm = () => {
-    setComboName("");
-    setComboDescription("");
-    setComboDiscount(0);
-    setComboItems([]);
-  };
+  const [loadingCombo, setLoadingCombo] = useState(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
 
   const handleCreateCombo = async () => {
     if (!comboName.trim() || comboItems.length === 0) {
@@ -587,6 +539,139 @@ const ProductsManager = () => {
       setConfirmingImport(false);
     }
   };
+  const availableComboProducts = products.filter((p) => !p.is_combo);
+
+  const comboSubtotal = comboItems.reduce((sum, item) => {
+    return sum + Number(item.product.sale_price || 0) * item.quantity;
+  }, 0);
+
+  const comboTotal = comboSubtotal * (1 - Number(comboDiscount || 0) / 100);
+
+  const resetComboForm = () => {
+    setEditingComboId(null);
+    setComboName("");
+    setComboDescription("");
+    setComboDiscount(0);
+    setComboItems([]);
+  };
+
+  const addProductToCombo = (product: Product) => {
+    if (!product.id) return;
+
+    setComboItems((prev) => {
+      const exists = prev.find((item) => item.product.id === product.id);
+
+      if (exists) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  const updateComboItemQuantity = (productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      setComboItems((prev) =>
+        prev.filter((item) => item.product.id !== productId),
+      );
+      return;
+    }
+
+    setComboItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity } : item,
+      ),
+    );
+  };
+
+  const openEditCombo = async (product: Product) => {
+    if (!product.id) return;
+
+    try {
+      setLoadingCombo(true);
+      resetComboForm();
+
+      const res = await api.get(`/products/combos/${product.id}`);
+      const combo = res.data;
+
+      setEditingComboId(combo.id);
+      setComboName(combo.name || "");
+      setComboDescription(combo.description || "");
+      setComboDiscount(Number(combo.combo_discount_percent || 0));
+
+      setComboItems(
+        combo.items.map((item: any) => ({
+          product: item.product,
+          quantity: item.quantity,
+        })),
+      );
+
+      setOpenComboDialog(true);
+    } catch {
+      setSnackbar({
+        open: true,
+        message: "Error al cargar combo",
+        severity: "error",
+      });
+    } finally {
+      setLoadingCombo(false);
+    }
+  };
+
+  const handleSaveCombo = async () => {
+    if (!comboName.trim() || comboItems.length === 0) {
+      setSnackbar({
+        open: true,
+        message: "Ingresá un nombre y al menos un producto",
+        severity: "error",
+      });
+      return;
+    }
+
+    const payload = {
+      name: comboName.trim(),
+      description: comboDescription.trim(),
+      discount_percent: Number(comboDiscount) || 0,
+      items: comboItems.map((item) => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+      })),
+    };
+
+    try {
+      setSavingCombo(true);
+
+      if (editingComboId) {
+        await api.patch(`/products/combos/${editingComboId}`, payload);
+      } else {
+        await api.post("/products/combos", payload);
+      }
+
+      setSnackbar({
+        open: true,
+        message: editingComboId
+          ? "Combo actualizado correctamente"
+          : "Combo creado correctamente",
+        severity: "success",
+      });
+
+      setOpenComboDialog(false);
+      resetComboForm();
+      fetchProducts();
+    } catch {
+      setSnackbar({
+        open: true,
+        message: "Error al guardar combo",
+        severity: "error",
+      });
+    } finally {
+      setSavingCombo(false);
+    }
+  };
   const processRowUpdate = async (row: Product) => {
     const updated = {
       ...row,
@@ -628,6 +713,11 @@ const ProductsManager = () => {
         <>
           <IconButton
             onClick={() => {
+              if (params.row.is_combo) {
+                openEditCombo(params.row);
+                return;
+              }
+
               setEditingProduct({
                 ...params.row,
                 unit_price: Number(params.row.unit_price) || 0,
@@ -642,6 +732,7 @@ const ProductsManager = () => {
                   }),
                 rubro_id: params.row.rubro?.id ?? params.row.rubro_id ?? "",
               });
+
               setTab(0);
               setOpenForm(true);
             }}
@@ -1227,7 +1318,9 @@ const ProductsManager = () => {
           maxWidth="md"
           fullWidth
         >
-          <DialogTitle>Armar combo</DialogTitle>
+          <DialogTitle>
+            {editingComboId ? "Editar combo" : "Armar combo"}
+          </DialogTitle>
 
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
@@ -1268,16 +1361,14 @@ const ProductsManager = () => {
               </TextField>
 
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Productos del combo
-                </Typography>
+                <Typography variant="h6">Productos del combo</Typography>
 
                 {comboItems.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    Todavía no agregaste productos.
+                  <Typography color="text.secondary">
+                    No agregaste productos todavía.
                   </Typography>
                 ) : (
-                  <Stack spacing={1}>
+                  <Stack spacing={1} sx={{ mt: 1 }}>
                     {comboItems.map((item) => (
                       <Box
                         key={item.product.id}
@@ -1286,7 +1377,7 @@ const ProductsManager = () => {
                         alignItems="center"
                       >
                         <Box flex={1}>
-                          <Typography variant="body2">
+                          <Typography>
                             {item.product.name} - {item.product.description}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
@@ -1308,9 +1399,11 @@ const ProductsManager = () => {
                           sx={{ width: 100 }}
                         />
 
-                        <Typography sx={{ width: 110, textAlign: "right" }}>
+                        <Typography sx={{ width: 120, textAlign: "right" }}>
                           $
-                          {Number(item.product.sale_price || 0) * item.quantity}
+                          {(
+                            Number(item.product.sale_price || 0) * item.quantity
+                          ).toFixed(2)}
                         </Typography>
 
                         <IconButton
@@ -1337,9 +1430,7 @@ const ProductsManager = () => {
 
               <Card>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary">
-                    Subtotal: ${comboSubtotal.toFixed(2)}
-                  </Typography>
+                  <Typography>Subtotal: ${comboSubtotal.toFixed(2)}</Typography>
 
                   <Typography variant="h5">
                     Total combo: ${comboTotal.toFixed(2)}
@@ -1354,10 +1445,8 @@ const ProductsManager = () => {
 
             <Button
               variant="contained"
-              disabled={
-                savingCombo || !comboName.trim() || comboItems.length === 0
-              }
-              onClick={handleCreateCombo}
+              onClick={handleSaveCombo}
+              disabled={savingCombo || loadingCombo}
               startIcon={
                 savingCombo ? <CircularProgress size={18} /> : <SaveIcon />
               }
