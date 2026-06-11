@@ -62,6 +62,8 @@ interface Product {
   rubro_id: number | "";
   is_active: boolean;
   rubro?: Rubro | null;
+  is_combo?: boolean;
+  combo_discount_percent?: number;
 }
 
 interface Rubro {
@@ -192,7 +194,108 @@ const ProductsManager = () => {
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
+  const [openComboDialog, setOpenComboDialog] = useState(false);
+  const [comboName, setComboName] = useState("");
+  const [comboDescription, setComboDescription] = useState("");
+  const [comboDiscount, setComboDiscount] = useState(0);
+  const [comboItems, setComboItems] = useState<
+    { product: Product; quantity: number }[]
+  >([]);
+  const [savingCombo, setSavingCombo] = useState(false);
+  const comboSubtotal = useMemo(() => {
+    return comboItems.reduce((sum, item) => {
+      return sum + Number(item.product.sale_price || 0) * item.quantity;
+    }, 0);
+  }, [comboItems]);
 
+  const comboTotal = useMemo(() => {
+    return Number((comboSubtotal * (1 - comboDiscount / 100)).toFixed(2));
+  }, [comboSubtotal, comboDiscount]);
+
+  const availableComboProducts = products.filter((p) => !p.is_combo);
+
+  const addProductToCombo = (product: Product) => {
+    if (!product.id) return;
+
+    setComboItems((prev) => {
+      const exists = prev.find((item) => item.product.id === product.id);
+
+      if (exists) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  const updateComboItemQuantity = (productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      setComboItems((prev) =>
+        prev.filter((item) => item.product.id !== productId),
+      );
+      return;
+    }
+
+    setComboItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity } : item,
+      ),
+    );
+  };
+
+  const resetComboForm = () => {
+    setComboName("");
+    setComboDescription("");
+    setComboDiscount(0);
+    setComboItems([]);
+  };
+
+  const handleCreateCombo = async () => {
+    if (!comboName.trim() || comboItems.length === 0) {
+      setSnackbar({
+        open: true,
+        message: "Ingresá un nombre y al menos un producto para el combo",
+        severity: "error",
+      });
+      return;
+    }
+
+    try {
+      setSavingCombo(true);
+
+      await api.post("/products/combos", {
+        name: comboName.trim(),
+        description: comboDescription.trim(),
+        discount_percent: Number(comboDiscount) || 0,
+        items: comboItems.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+      });
+
+      setSnackbar({
+        open: true,
+        message: "Combo creado correctamente",
+        severity: "success",
+      });
+
+      setOpenComboDialog(false);
+      resetComboForm();
+      fetchProducts();
+    } catch {
+      setSnackbar({
+        open: true,
+        message: "Error al crear combo",
+        severity: "error",
+      });
+    } finally {
+      setSavingCombo(false);
+    }
+  };
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -600,6 +703,16 @@ const ProductsManager = () => {
               }}
             >
               Nuevo producto
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                resetComboForm();
+                setOpenComboDialog(true);
+              }}
+            >
+              Armar combo
             </Button>
           </Stack>
         </Box>
@@ -1107,7 +1220,152 @@ const ProductsManager = () => {
             </Button>
           </DialogActions>
         </Dialog>
+        <Dialog
+          open={openComboDialog}
+          onClose={() => setOpenComboDialog(false)}
+          fullScreen={isMobile}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>Armar combo</DialogTitle>
 
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Nombre del combo"
+                value={comboName}
+                onChange={(e) => setComboName(e.target.value)}
+                fullWidth
+              />
+
+              <TextField
+                label="Descripción"
+                value={comboDescription}
+                onChange={(e) => setComboDescription(e.target.value)}
+                fullWidth
+                multiline
+              />
+
+              <TextField
+                select
+                label="Agregar producto"
+                value=""
+                onChange={(e) => {
+                  const product = availableComboProducts.find(
+                    (p) => p.id === Number(e.target.value),
+                  );
+
+                  if (product) addProductToCombo(product);
+                }}
+                fullWidth
+              >
+                {availableComboProducts.map((product) => (
+                  <MenuItem key={product.id} value={product.id}>
+                    {product.name} - {product.description} - $
+                    {product.sale_price}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Productos del combo
+                </Typography>
+
+                {comboItems.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Todavía no agregaste productos.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {comboItems.map((item) => (
+                      <Box
+                        key={item.product.id}
+                        display="flex"
+                        gap={1}
+                        alignItems="center"
+                      >
+                        <Box flex={1}>
+                          <Typography variant="body2">
+                            {item.product.name} - {item.product.description}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Precio unitario: ${item.product.sale_price}
+                          </Typography>
+                        </Box>
+
+                        <TextField
+                          label="Cant."
+                          type="number"
+                          size="small"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateComboItemQuantity(
+                              item.product.id!,
+                              Number(e.target.value),
+                            )
+                          }
+                          sx={{ width: 100 }}
+                        />
+
+                        <Typography sx={{ width: 110, textAlign: "right" }}>
+                          $
+                          {Number(item.product.sale_price || 0) * item.quantity}
+                        </Typography>
+
+                        <IconButton
+                          color="error"
+                          onClick={() =>
+                            updateComboItemQuantity(item.product.id!, 0)
+                          }
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </Paper>
+
+              <TextField
+                label="Descuento %"
+                type="number"
+                value={comboDiscount}
+                onChange={(e) => setComboDiscount(Number(e.target.value))}
+                inputProps={{ min: 0, max: 100 }}
+              />
+
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">
+                    Subtotal: ${comboSubtotal.toFixed(2)}
+                  </Typography>
+
+                  <Typography variant="h5">
+                    Total combo: ${comboTotal.toFixed(2)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Stack>
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={() => setOpenComboDialog(false)}>Cancelar</Button>
+
+            <Button
+              variant="contained"
+              disabled={
+                savingCombo || !comboName.trim() || comboItems.length === 0
+              }
+              onClick={handleCreateCombo}
+              startIcon={
+                savingCombo ? <CircularProgress size={18} /> : <SaveIcon />
+              }
+            >
+              {savingCombo ? "Guardando..." : "Guardar combo"}
+            </Button>
+          </DialogActions>
+        </Dialog>
         <Snackbar
           open={snackbar.open}
           autoHideDuration={3500}
