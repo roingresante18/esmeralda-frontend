@@ -31,6 +31,7 @@ import {
   ListItemText,
   CircularProgress,
   Checkbox,
+  Autocomplete,
 } from "@mui/material";
 import {
   DataGrid,
@@ -1339,26 +1340,49 @@ const ProductsManager = () => {
                 multiline
               />
 
-              <TextField
-                select
-                label="Agregar producto"
-                value=""
-                onChange={(e) => {
-                  const product = availableComboProducts.find(
-                    (p) => p.id === Number(e.target.value),
-                  );
+              <Autocomplete
+                options={availableComboProducts}
+                getOptionLabel={(product) =>
+                  `${product.id ?? ""} - ${product.name ?? ""} - ${
+                    product.description ?? ""
+                  }`
+                }
+                filterOptions={(options, state) => {
+                  const search = state.inputValue.toLowerCase().trim();
 
-                  if (product) addProductToCombo(product);
+                  return options.filter((product) => {
+                    const id = String(product.id ?? "").toLowerCase();
+                    const name = String(product.name ?? "").toLowerCase();
+                    const description = String(
+                      product.description ?? "",
+                    ).toLowerCase();
+
+                    return (
+                      id.includes(search) ||
+                      name.includes(search) ||
+                      description.includes(search)
+                    );
+                  });
                 }}
-                fullWidth
-              >
-                {availableComboProducts.map((product) => (
-                  <MenuItem key={product.id} value={product.id}>
-                    {product.name} - {product.description} - $
-                    {product.sale_price}
-                  </MenuItem>
-                ))}
-              </TextField>
+                onChange={(_, product) => {
+                  if (product) {
+                    addProductToCombo(product);
+                  }
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Buscar producto por código o descripción"
+                    fullWidth
+                  />
+                )}
+                renderOption={(props, product) => (
+                  <li {...props} key={product.id}>
+                    #{product.id} - {product.name} - {product.description} - $
+                    {Number(product.sale_price || 0).toFixed(2)}
+                  </li>
+                )}
+              />
 
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="h6">Productos del combo</Typography>
@@ -1396,7 +1420,11 @@ const ProductsManager = () => {
                               Number(e.target.value),
                             )
                           }
-                          sx={{ width: 100 }}
+                          inputProps={{
+                            step: 0.001,
+                            min: 0.001,
+                          }}
+                          sx={{ width: 110 }}
                         />
 
                         <Typography sx={{ width: 120, textAlign: "right" }}>
