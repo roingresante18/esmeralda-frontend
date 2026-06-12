@@ -66,6 +66,7 @@ interface Product {
 
   is_combo?: boolean;
   combo_discount_percent?: number;
+  image_url?: string;
 }
 
 interface Rubro {
@@ -199,6 +200,8 @@ const ProductsManager = () => {
   const [comboItems, setComboItems] = useState<
     { product: Product; quantity: number }[]
   >([]);
+  const [comboImageFile, setComboImageFile] = useState<File | null>(null);
+  const [comboImagePreview, setComboImagePreview] = useState<string>("");
   const [savingCombo, setSavingCombo] = useState(false);
   const [loadingCombo, setLoadingCombo] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -306,7 +309,18 @@ const ProductsManager = () => {
       return updated;
     });
   };
+  const buildComboDescription = (
+    items: { product: Product; quantity: number }[],
+  ) => {
+    return items
+      .map((item) => {
+        const description =
+          item.product.description || item.product.name || "Producto";
 
+        return `${description} x ${item.quantity}`;
+      })
+      .join(" --- ");
+  };
   const isValid =
     !!editingProduct &&
     editingProduct.name.trim() !== "" &&
@@ -554,39 +568,47 @@ const ProductsManager = () => {
     setComboDescription("");
     setComboDiscount(0);
     setComboItems([]);
+    setComboImageFile(null);
+    setComboImagePreview("");
   };
 
   const addProductToCombo = (product: Product) => {
     if (!product.id) return;
 
     setComboItems((prev) => {
+      let nextItems: { product: Product; quantity: number }[];
+
       const exists = prev.find((item) => item.product.id === product.id);
 
       if (exists) {
-        return prev.map((item) =>
+        nextItems = prev.map((item) =>
           item.product.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item,
         );
+      } else {
+        nextItems = [...prev, { product, quantity: 1 }];
       }
 
-      return [...prev, { product, quantity: 1 }];
+      setComboDescription(buildComboDescription(nextItems));
+
+      return nextItems;
     });
   };
 
   const updateComboItemQuantity = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
-      setComboItems((prev) =>
-        prev.filter((item) => item.product.id !== productId),
-      );
-      return;
-    }
+    setComboItems((prev) => {
+      const nextItems =
+        quantity <= 0
+          ? prev.filter((item) => item.product.id !== productId)
+          : prev.map((item) =>
+              item.product.id === productId ? { ...item, quantity } : item,
+            );
 
-    setComboItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item,
-      ),
-    );
+      setComboDescription(buildComboDescription(nextItems));
+
+      return nextItems;
+    });
   };
 
   const openEditCombo = async (product: Product) => {
@@ -603,7 +625,8 @@ const ProductsManager = () => {
       setComboName(combo.name || "");
       setComboDescription(combo.description || "");
       setComboDiscount(Number(combo.combo_discount_percent || 0));
-
+      setComboImagePreview(combo.image_url || "");
+      setComboImageFile(null);
       setComboItems(
         combo.items.map((item: any) => ({
           product: item.product,
@@ -633,23 +656,41 @@ const ProductsManager = () => {
       return;
     }
 
-    const payload = {
-      name: comboName.trim(),
-      description: comboDescription.trim(),
-      discount_percent: Number(comboDiscount) || 0,
-      items: comboItems.map((item) => ({
-        product_id: item.product.id,
-        quantity: item.quantity,
-      })),
-    };
+    const formData = new FormData();
+
+    formData.append("name", comboName.trim());
+    formData.append("description", comboDescription.trim());
+    formData.append("discount_percent", String(Number(comboDiscount) || 0));
+
+    formData.append(
+      "items",
+      JSON.stringify(
+        comboItems.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+      ),
+    );
+
+    if (comboImageFile) {
+      formData.append("file", comboImageFile);
+    }
 
     try {
       setSavingCombo(true);
 
       if (editingComboId) {
-        await api.patch(`/products/combos/${editingComboId}`, payload);
+        await api.patch(`/products/combos/${editingComboId}`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
       } else {
-        await api.post("/products/combos", payload);
+        await api.post("/products/combos", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
       }
 
       setSnackbar({
@@ -672,6 +713,16 @@ const ProductsManager = () => {
     } finally {
       setSavingCombo(false);
     }
+  };
+  const handleComboImageChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setComboImageFile(file);
+    setComboImagePreview(URL.createObjectURL(file));
   };
   const processRowUpdate = async (row: Product) => {
     const updated = {
@@ -1331,7 +1382,33 @@ const ProductsManager = () => {
                 onChange={(e) => setComboName(e.target.value)}
                 fullWidth
               />
+              <Box>
+                <Button variant="outlined" component="label">
+                  Seleccionar imagen del combo
+                  <input
+                    hidden
+                    type="file"
+                    accept="image/*"
+                    onChange={handleComboImageChange}
+                  />
+                </Button>
 
+                {comboImagePreview && (
+                  <Box sx={{ mt: 2 }}>
+                    <img
+                      src={comboImagePreview}
+                      alt="Imagen del combo"
+                      style={{
+                        width: 180,
+                        height: 120,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                      }}
+                    />
+                  </Box>
+                )}
+              </Box>
               <TextField
                 label="Descripción"
                 value={comboDescription}
