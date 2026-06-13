@@ -1,31 +1,38 @@
 import { Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { FC } from "react";
 
-/* ============================================================
-   TYPES
-============================================================ */
-
 type CreatedBy = {
   id?: number;
   full_name?: string;
   email?: string;
 };
 
-interface OrderItem {
-  id: number;
+interface ComboItem {
+  id?: number;
   quantity: number;
-
-  // Puede venir del carrito/front
-  sale_price?: number;
-  description?: string;
-
-  // Puede venir de la API
-  unit_price?: number;
-  discount_percent?: number;
   product?: {
     id?: number;
     description?: string;
   } | null;
+}
+
+interface OrderItem {
+  id: number;
+  quantity: number;
+  sale_price?: number;
+  description?: string;
+  unit_price?: number;
+  discount_percent?: number;
+
+  product?: {
+    id?: number;
+    description?: string;
+    is_combo?: boolean;
+    combo_items?: ComboItem[];
+  } | null;
+
+  is_combo?: boolean;
+  combo_items?: ComboItem[];
 }
 
 interface Order {
@@ -45,10 +52,6 @@ interface Props {
   order: Order;
 }
 
-/* ============================================================
-   HELPERS
-============================================================ */
-
 const formatMoney = (value: number) =>
   value.toLocaleString("es-AR", {
     style: "currency",
@@ -61,41 +64,41 @@ const getItemDescription = (item: OrderItem) =>
 const getItemPrice = (item: OrderItem) => {
   const basePrice = item.sale_price ?? item.unit_price ?? 0;
   const discount = item.discount_percent ?? 0;
-
-  if (discount <= 0) return basePrice;
-
-  return basePrice * (1 - discount / 100);
+  return discount > 0 ? basePrice * (1 - discount / 100) : basePrice;
 };
 
-/* ============================================================
-   STYLES
-============================================================ */
+const isComboItem = (item: OrderItem) =>
+  Boolean(item.is_combo || item.product?.is_combo);
+
+const getComboItems = (item: OrderItem) =>
+  item.combo_items || item.product?.combo_items || [];
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 24,
-    fontSize: 10,
-  },
-  copy: {
-    minHeight: "47%",
-  },
-  title: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: "bold",
-  },
-  section: {
-    marginBottom: 8,
-  },
-  infoText: {
-    marginBottom: 3,
-    lineHeight: 1.3,
-  },
+  page: { padding: 24, fontSize: 10 },
+  copy: { minHeight: "47%" },
+  title: { fontSize: 16, marginBottom: 8, fontWeight: "bold" },
+  section: { marginBottom: 8 },
+  infoText: { marginBottom: 3, lineHeight: 1.3 },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottom: "1px solid #ccc",
     paddingVertical: 3,
+  },
+  comboHeader: {
+    paddingVertical: 4,
+    borderBottom: "1px solid #999",
+  },
+  comboTitle: {
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  comboRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 2,
+    paddingLeft: 10,
+    borderBottom: "1px solid #eee",
   },
   headerRow: {
     flexDirection: "row",
@@ -105,31 +108,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingBottom: 4,
   },
-  productText: {
-    width: "80%",
-    paddingRight: 8,
-  },
-  quantityText: {
-    width: "20%",
-    textAlign: "right",
-  },
-  productClientText: {
-    width: "50%",
-    paddingRight: 8,
-  },
-  quantityClientText: {
-    width: "12%",
-    textAlign: "right",
-  },
-  priceText: {
-    width: "19%",
-    textAlign: "right",
-  },
-  footer: {
-    marginTop: 10,
-    fontSize: 9,
-    color: "#666",
-  },
+  productText: { width: "80%", paddingRight: 8 },
+  quantityText: { width: "20%", textAlign: "right" },
+  productClientText: { width: "50%", paddingRight: 8 },
+  quantityClientText: { width: "12%", textAlign: "right" },
+  priceText: { width: "19%", textAlign: "right" },
+  footer: { marginTop: 10, fontSize: 9, color: "#666" },
   separator: {
     borderBottom: "1px dashed #999",
     marginVertical: 12,
@@ -142,16 +126,10 @@ const styles = StyleSheet.create({
   },
 });
 
-/* ============================================================
-   COMPONENT
-============================================================ */
-
 const OrderDepositPDF: FC<Props> = ({ order }) => {
   const loggedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  const now = new Date();
-
-  const formattedDate = now.toLocaleString("es-AR", {
+  const formattedDate = new Date().toLocaleString("es-AR", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -161,12 +139,10 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
   });
 
   const depositUserName = loggedUser.full_name || loggedUser.name || "Usuario";
-
   const sellerName = order.createdBy?.full_name || "Sin vendedor";
 
   const total = order.items.reduce((sum, item) => {
-    const price = getItemPrice(item);
-    return sum + item.quantity * price;
+    return sum + item.quantity * getItemPrice(item);
   }, 0);
 
   return (
@@ -193,12 +169,50 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
             <Text style={styles.quantityText}>Cantidad</Text>
           </View>
 
-          {order.items.map((item, idx) => (
-            <View key={item.id || idx} style={styles.row}>
-              <Text style={styles.productText}>{getItemDescription(item)}</Text>
-              <Text style={styles.quantityText}>{item.quantity}</Text>
-            </View>
-          ))}
+          {order.items.map((item, idx) => {
+            const combo = isComboItem(item);
+            const comboItems = getComboItems(item);
+
+            if (!combo) {
+              return (
+                <View key={item.id || idx} style={styles.row}>
+                  <Text style={styles.productText}>
+                    {getItemDescription(item)}
+                  </Text>
+                  <Text style={styles.quantityText}>{item.quantity}</Text>
+                </View>
+              );
+            }
+
+            return (
+              <View key={item.id || idx}>
+                <View style={styles.comboHeader}>
+                  <Text style={styles.comboTitle}>
+                    {idx + 1}) COMBO x {item.quantity}
+                  </Text>
+                </View>
+
+                {comboItems.map((comboItem, comboIdx) => {
+                  const comboQuantity =
+                    Number(comboItem.quantity || 0) *
+                    Number(item.quantity || 1);
+
+                  return (
+                    <View
+                      key={comboItem.id || comboIdx}
+                      style={styles.comboRow}
+                    >
+                      <Text style={styles.productText}>
+                        {comboItem.product?.description ||
+                          "Producto sin descripción"}
+                      </Text>
+                      <Text style={styles.quantityText}>{comboQuantity}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })}
         </View>
 
         <Text style={styles.footer}>
@@ -237,15 +251,59 @@ const OrderDepositPDF: FC<Props> = ({ order }) => {
           {order.items.map((item, idx) => {
             const price = getItemPrice(item);
             const subtotal = item.quantity * price;
+            const combo = isComboItem(item);
+            const comboItems = getComboItems(item);
+
+            if (!combo) {
+              return (
+                <View key={item.id || idx} style={styles.row}>
+                  <Text style={styles.productClientText}>
+                    {getItemDescription(item)}
+                  </Text>
+                  <Text style={styles.quantityClientText}>{item.quantity}</Text>
+                  <Text style={styles.priceText}>{formatMoney(price)}</Text>
+                  <Text style={styles.priceText}>{formatMoney(subtotal)}</Text>
+                </View>
+              );
+            }
 
             return (
-              <View key={item.id || idx} style={styles.row}>
-                <Text style={styles.productClientText}>
-                  {getItemDescription(item)}
-                </Text>
-                <Text style={styles.quantityClientText}>{item.quantity}</Text>
-                <Text style={styles.priceText}>{formatMoney(price)}</Text>
-                <Text style={styles.priceText}>{formatMoney(subtotal)}</Text>
+              <View key={item.id || idx}>
+                <View style={styles.comboHeader}>
+                  <Text style={styles.comboTitle}>
+                    {idx + 1}) COMBO x {item.quantity}
+                  </Text>
+                </View>
+
+                {comboItems.map((comboItem, comboIdx) => {
+                  const comboQuantity =
+                    Number(comboItem.quantity || 0) *
+                    Number(item.quantity || 1);
+
+                  return (
+                    <View
+                      key={comboItem.id || comboIdx}
+                      style={styles.comboRow}
+                    >
+                      <Text style={styles.productClientText}>
+                        {comboItem.product?.description ||
+                          "Producto sin descripción"}
+                      </Text>
+                      <Text style={styles.quantityClientText}>
+                        {comboQuantity}
+                      </Text>
+                      <Text style={styles.priceText}></Text>
+                      <Text style={styles.priceText}></Text>
+                    </View>
+                  );
+                })}
+
+                <View style={styles.row}>
+                  <Text style={styles.productClientText}>Total combo</Text>
+                  <Text style={styles.quantityClientText}></Text>
+                  <Text style={styles.priceText}>{formatMoney(price)}</Text>
+                  <Text style={styles.priceText}>{formatMoney(subtotal)}</Text>
+                </View>
               </View>
             );
           })}

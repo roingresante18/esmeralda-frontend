@@ -325,22 +325,85 @@ export default function OrderProductPicker({ onAdd }: Props) {
             <Paper
               variant="outlined"
               sx={{
-                p: 1.5,
+                p: 2,
                 borderRadius: 2.5,
                 bgcolor: "rgba(25, 118, 210, 0.03)",
               }}
             >
-              <Typography variant="body2" fontWeight={700}>
-                Seleccionado: {selected.name || "Sin código"}
-              </Typography>
-              {selected.description && (
-                <Typography variant="body2" color="text.secondary" mt={0.3}>
-                  {selected.description}
-                </Typography>
-              )}
-              <Typography variant="caption" color="text.secondary">
-                Precio: $ {Number(selected.sale_price).toFixed(2)}
-              </Typography>
+              <Stack direction="row" spacing={2} alignItems="flex-start">
+                <Box
+                  sx={{
+                    width: 180,
+                    height: 180,
+                    borderRadius: 2,
+                    overflow: "hidden",
+                    border: "1px solid #ddd",
+                    flexShrink: 0,
+                    bgcolor: "#fafafa",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {selected.image_url ? (
+                    <Box
+                      component="img"
+                      src={selected.image_url}
+                      alt={selected.description}
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      Sin imagen
+                    </Typography>
+                  )}
+                </Box>
+
+                <Box flex={1}>
+                  <Typography variant="h6" fontWeight={700}>
+                    {selected.name || "Sin código"}
+                  </Typography>
+
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 1 }}
+                  >
+                    {selected.description}
+                  </Typography>
+
+                  {selected.is_combo && (
+                    <Typography
+                      sx={{
+                        mt: 1,
+                        fontWeight: 700,
+                        color: "primary.main",
+                      }}
+                    >
+                      COMBO
+                    </Typography>
+                  )}
+
+                  <Typography
+                    sx={{
+                      mt: 2,
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: "#06a22a",
+                    }}
+                  >
+                    $
+                    {Number(selected.sale_price || 0).toLocaleString("es-AR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Typography>
+                </Box>
+              </Stack>
             </Paper>
           )}
         </Stack>

@@ -1114,19 +1114,19 @@ export default function OrderManager({
       />
       {/* </Box> */}
 
-      {/* <Box sx={{ position: "absolute", left: -9999, top: 0 }}> */}
-      <OrderConfirmationReceipt
-        ref={confirmationReceiptRef}
-        order={confirmedOrder ?? order}
-        totalAmount={confirmedTotal}
-        logoUrl={logo}
-        address={confirmedDelivery.address}
-        deliveryDate={confirmedDelivery.deliveryDate}
-        cash={confirmedPayment.cash}
-        transfer={confirmedPayment.transfer}
-        reference={confirmedPayment.reference}
-      />
-      {/* </Box> */}
+      <Box sx={{ position: "absolute", left: -9999, top: 0 }}>
+        <OrderConfirmationReceipt
+          ref={confirmationReceiptRef}
+          order={confirmedOrder ?? order}
+          totalAmount={confirmedTotal}
+          logoUrl={logo}
+          address={confirmedDelivery.address}
+          deliveryDate={confirmedDelivery.deliveryDate}
+          cash={confirmedPayment.cash}
+          transfer={confirmedPayment.transfer}
+          reference={confirmedPayment.reference}
+        />
+      </Box>
 
       {/* MODAL CLIENTE */}
       <Dialog
