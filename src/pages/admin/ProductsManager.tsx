@@ -191,7 +191,9 @@ const ProductsManager = () => {
     null,
   );
   const [createMissing, setCreateMissing] = useState(false);
-
+  const [comboProductSearch, setComboProductSearch] = useState("");
+  const [selectedComboProduct, setSelectedComboProduct] =
+    useState<Product | null>(null);
   const [openComboDialog, setOpenComboDialog] = useState(false);
   const [editingComboId, setEditingComboId] = useState<number | null>(null);
   const [comboName, setComboName] = useState("");
@@ -555,11 +557,33 @@ const ProductsManager = () => {
     }
   };
   const availableComboProducts = products.filter((p) => !p.is_combo);
-
+  const removeComboItem = (productId: number) => {
+    setComboItems((prev) => {
+      const nextItems = prev.filter((item) => item.product.id !== productId);
+      setComboDescription(buildComboDescription(nextItems));
+      return nextItems;
+    });
+  };
   const comboSubtotal = comboItems.reduce((sum, item) => {
     return sum + Number(item.product.sale_price || 0) * item.quantity;
   }, 0);
+  const updateComboItemQuantityInput = (productId: number, value: string) => {
+    setComboItems((prev) => {
+      const nextItems = prev.map((item) =>
+        item.product.id === productId
+          ? {
+              ...item,
+              quantity:
+                value === "" ? ("" as unknown as number) : Number(value),
+            }
+          : item,
+      );
 
+      setComboDescription(buildComboDescription(nextItems));
+
+      return nextItems;
+    });
+  };
   const comboTotal = comboSubtotal * (1 - Number(comboDiscount || 0) / 100);
 
   const resetComboForm = () => {
@@ -1419,6 +1443,11 @@ const ProductsManager = () => {
 
               <Autocomplete
                 options={availableComboProducts}
+                value={selectedComboProduct}
+                inputValue={comboProductSearch}
+                onInputChange={(_, value) => {
+                  setComboProductSearch(value);
+                }}
                 getOptionLabel={(product) =>
                   `${product.id ?? ""} - ${product.name ?? ""} - ${
                     product.description ?? ""
@@ -1444,6 +1473,8 @@ const ProductsManager = () => {
                 onChange={(_, product) => {
                   if (product) {
                     addProductToCombo(product);
+                    setSelectedComboProduct(null);
+                    setComboProductSearch("");
                   }
                 }}
                 renderInput={(params) => (
@@ -1490,13 +1521,30 @@ const ProductsManager = () => {
                           label="Cant."
                           type="number"
                           size="small"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateComboItemQuantity(
+                          value={String(item.quantity)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+
+                            if (value === "") {
+                              updateComboItemQuantityInput(
+                                item.product.id!,
+                                "",
+                              );
+                              return;
+                            }
+
+                            updateComboItemQuantityInput(
                               item.product.id!,
-                              Number(e.target.value),
-                            )
-                          }
+                              value,
+                            );
+                          }}
+                          onBlur={(e) => {
+                            const value = Number(e.target.value);
+
+                            if (!value || value <= 0) {
+                              updateComboItemQuantity(item.product.id!, 1);
+                            }
+                          }}
                           inputProps={{
                             step: 0.001,
                             min: 0.001,
@@ -1513,9 +1561,7 @@ const ProductsManager = () => {
 
                         <IconButton
                           color="error"
-                          onClick={() =>
-                            updateComboItemQuantity(item.product.id!, 0)
-                          }
+                          onClick={() => removeComboItem(item.product.id!)}
                         >
                           <DeleteIcon />
                         </IconButton>
