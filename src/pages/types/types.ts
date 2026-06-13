@@ -7,12 +7,22 @@ export type OrderItem = CartItem & {
   name: string;
 };
 export type CartItem = {
-  id?: number; // 👈 IMPORTANTE
+  id?: number;
   productId: number;
   description: string;
   quantity: number;
   discountPercent?: number;
   sale_price: number;
+
+  is_combo?: boolean;
+  combo_items?: {
+    id?: number;
+    quantity: number;
+    product?: {
+      id?: number;
+      description?: string;
+    };
+  }[];
 };
 
 // =====================
@@ -88,6 +98,7 @@ export type DraftOrderApi = {
   total_amount?: number;
   payment_confirmed?: boolean;
   delivery_address_snapshot?: string;
+
   client?: {
     id: number;
     name: string;
@@ -106,9 +117,21 @@ export type DraftOrderApi = {
     quantity: number;
     discount_percent: number;
     unit_price: number;
+
     product?: {
       id: number;
       description?: string;
+
+      is_combo?: boolean;
+      combo_items?: {
+        id?: number;
+        quantity: number;
+
+        product?: {
+          id?: number;
+          description?: string;
+        };
+      }[];
     };
   }[];
 };

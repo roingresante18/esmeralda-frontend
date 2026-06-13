@@ -137,54 +137,128 @@ const OrderConfirmationReceipt = forwardRef<HTMLDivElement, Props>(
             PEDIDO CONFIRMADO{" "}
           </Typography>{" "}
         </Stack>{" "}
-        <Divider /> {/* PRODUCTOS */}{" "}
+        <Divider />
+        {/* PRODUCTOS */} {/* PRODUCTOS */}
         <Stack spacing={1.2}>
-          {" "}
           {order?.items?.map((item, index) => {
             const unitPrice = Number(item.sale_price ?? 0);
             const discount = Number(item.discountPercent ?? 0);
+
             const finalUnit =
               unitPrice * (1 - Math.min(Math.max(discount, 0), 100) / 100);
+
             const total = finalUnit * item.quantity;
+
+            const isCombo = Boolean(item.is_combo);
+            const comboItems = item.combo_items ?? [];
+
             return (
               <Box
                 key={item.id ?? `${item.productId}-${index}`}
                 sx={{ pb: 0.8, borderBottom: "1px dashed #ddd" }}
               >
-                {" "}
-                <Typography fontWeight={600} fontSize={14}>
-                  {" "}
-                  {index + 1}) {item.description}{" "}
-                </Typography>{" "}
-                <Stack direction="row" justifyContent="space-between" mt={0.3}>
-                  {" "}
-                  <Typography variant="body2" color="text.secondary">
-                    {" "}
-                    {item.quantity} × ${unitPrice.toLocaleString("es-AR")}{" "}
-                  </Typography>{" "}
-                  <Typography fontWeight={700}>
-                    {" "}
-                    $
-                    {total.toLocaleString("es-AR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                  </Typography>{" "}
-                </Stack>{" "}
+                {isCombo ? (
+                  <>
+                    <Typography
+                      fontWeight={800}
+                      fontSize={14}
+                      sx={{ textTransform: "uppercase" }}
+                    >
+                      {index + 1}) COMBO
+                    </Typography>
+
+                    <Stack spacing={0.4} sx={{ mt: 0.8 }}>
+                      {comboItems.map((comboItem, comboIndex) => {
+                        const productDescription =
+                          comboItem.product?.description ||
+                          "Producto sin descripción";
+
+                        const comboQuantity =
+                          Number(comboItem.quantity || 0) *
+                          Number(item.quantity || 1);
+
+                        return (
+                          <Stack
+                            key={comboItem.id ?? comboIndex}
+                            direction="row"
+                            justifyContent="space-between"
+                            spacing={1}
+                          >
+                            <Typography fontSize={13} color="text.secondary">
+                              {productDescription}
+                            </Typography>
+
+                            <Typography
+                              fontSize={13}
+                              fontWeight={600}
+                              color="text.secondary"
+                              sx={{ whiteSpace: "nowrap" }}
+                            >
+                              x {comboQuantity}
+                            </Typography>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      mt={0.8}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        {item.quantity} combo × $
+                        {unitPrice.toLocaleString("es-AR")}
+                      </Typography>
+
+                      <Typography fontWeight={700}>
+                        $
+                        {total.toLocaleString("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Typography>
+                    </Stack>
+                  </>
+                ) : (
+                  <>
+                    <Typography fontWeight={600} fontSize={14}>
+                      {index + 1}) {item.description}
+                    </Typography>
+
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      mt={0.3}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
+                      </Typography>
+
+                      <Typography fontWeight={700}>
+                        $
+                        {total.toLocaleString("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Typography>
+                    </Stack>
+                  </>
+                )}
+
                 {discount > 0 && (
                   <Typography
                     variant="caption"
                     color="success.main"
                     fontWeight={600}
                   >
-                    {" "}
-                    Descuento {discount}% aplicado{" "}
+                    Descuento {discount}% aplicado
                   </Typography>
-                )}{" "}
+                )}
               </Box>
             );
-          })}{" "}
-        </Stack>{" "}
+          })}
+        </Stack>
         <Divider /> {/* ENTREGA */}{" "}
         <Stack spacing={0.4}>
           {" "}

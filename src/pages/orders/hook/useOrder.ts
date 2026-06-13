@@ -51,7 +51,7 @@ export function useOrder(canEdit: boolean) {
 
   const addProduct = (product: CartItem) => {
     if (!canEdit) return;
-
+    console.log("PRODUCTO AGREGADO AL CARRITO:", product);
     setOrder((p) => {
       const existing = p.items.find((i) => i.productId === product.productId);
 
@@ -60,13 +60,28 @@ export function useOrder(canEdit: boolean) {
           ...p,
           items: p.items.map((i) =>
             i.productId === product.productId
-              ? { ...i, quantity: i.quantity + product.quantity }
+              ? {
+                  ...i,
+                  quantity: Number(i.quantity) + Number(product.quantity),
+                  is_combo: product.is_combo ?? i.is_combo,
+                  combo_items: product.combo_items ?? i.combo_items,
+                }
               : i,
           ),
         };
       }
 
-      return { ...p, items: [...p.items, product] };
+      return {
+        ...p,
+        items: [
+          ...p.items,
+          {
+            ...product,
+            is_combo: product.is_combo ?? false,
+            combo_items: product.combo_items ?? [],
+          },
+        ],
+      };
     });
   };
 
@@ -104,6 +119,8 @@ export function useOrder(canEdit: boolean) {
       quantity: Number(i.quantity) || 1,
       sale_price: Number(i.unit_price) || 0,
       discountPercent: Number(i.discount_percent) || 0,
+      is_combo: Boolean((i.product as any)?.is_combo),
+      combo_items: (i.product as any)?.combo_items ?? [],
     }));
 
     setOrder({

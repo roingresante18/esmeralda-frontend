@@ -109,6 +109,8 @@ export default function OrderProductPicker({ onAdd }: Props) {
       description: selected.description,
       sale_price: Number(selected.sale_price) || 0,
       quantity,
+      is_combo: Boolean(selected.is_combo),
+      combo_items: selected.combo_items ?? [],
     });
 
     setSelected(null);
@@ -124,6 +126,8 @@ export default function OrderProductPicker({ onAdd }: Props) {
         description: p.description,
         sale_price: Number(p.sale_price) || 0,
         quantity: 1,
+        is_combo: Boolean(p.is_combo),
+        combo_items: p.combo_items ?? [],
       });
     });
 

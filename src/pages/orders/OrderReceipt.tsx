@@ -152,6 +152,9 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
 
             const total = finalUnit * item.quantity;
 
+            const isCombo = Boolean((item as any).is_combo);
+            const comboItems = (item as any).combo_items ?? [];
+
             return (
               <Box
                 key={item.id ?? `${item.productId}-${index}`}
@@ -160,32 +163,102 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
                   borderBottom: "1px dashed #ddd",
                 }}
               >
-                {/* Línea 1 — Nº + descripción */}
-                <Typography fontWeight={600} fontSize={14} lineHeight={1.2}>
-                  {index + 1}) {item.description}
-                </Typography>
+                {isCombo ? (
+                  <>
+                    <Typography
+                      fontWeight={700}
+                      fontSize={14}
+                      lineHeight={1.2}
+                      sx={{
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {index + 1}) COMBO
+                    </Typography>
 
-                {/* Línea 2 — Cantidad y total */}
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  mt={0.3}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
-                  </Typography>
+                    <Stack spacing={0.4} sx={{ mt: 0.8 }}>
+                      {comboItems.map((comboItem: any, comboIndex: number) => {
+                        const productDescription =
+                          comboItem.product?.description ||
+                          comboItem.description ||
+                          "Producto sin descripción";
 
-                  <Typography fontWeight={700} fontSize={15}>
-                    $
-                    {total.toLocaleString("es-AR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Typography>
-                </Stack>
+                        const comboQuantity =
+                          Number(comboItem.quantity || 0) *
+                          Number(item.quantity || 1);
 
-                {/* Descuento */}
+                        return (
+                          <Stack
+                            key={comboItem.id ?? comboIndex}
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="flex-start"
+                            spacing={1}
+                          >
+                            <Typography fontSize={13} color="text.secondary">
+                              {productDescription}
+                            </Typography>
+
+                            <Typography
+                              fontSize={13}
+                              fontWeight={600}
+                              color="text.secondary"
+                              sx={{ whiteSpace: "nowrap" }}
+                            >
+                              x {comboQuantity}
+                            </Typography>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      mt={0.8}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        {item.quantity} combo × $
+                        {unitPrice.toLocaleString("es-AR")}
+                      </Typography>
+
+                      <Typography fontWeight={700} fontSize={15}>
+                        $
+                        {total.toLocaleString("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Typography>
+                    </Stack>
+                  </>
+                ) : (
+                  <>
+                    <Typography fontWeight={600} fontSize={14} lineHeight={1.2}>
+                      {index + 1}) {item.description}
+                    </Typography>
+
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      mt={0.3}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        {item.quantity} × ${unitPrice.toLocaleString("es-AR")}
+                      </Typography>
+
+                      <Typography fontWeight={700} fontSize={15}>
+                        $
+                        {total.toLocaleString("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Typography>
+                    </Stack>
+                  </>
+                )}
+
                 {discount > 0 && (
                   <Typography
                     variant="caption"
@@ -199,7 +272,6 @@ const OrderReceipt = forwardRef<HTMLDivElement, Props>(
             );
           })}
         </Stack>
-
         {/* OBSERVACIONES */}
         <Typography
           variant="body2"
