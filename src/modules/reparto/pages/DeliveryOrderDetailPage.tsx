@@ -155,14 +155,19 @@ export const DeliveryOrderDetailPage = ({
 
   const handleCaptureGps = async () => {
     const point = await captureGps();
-    if (!point) return;
+
+    if (!point) {
+      return;
+    }
 
     setLocalAuditEvents((prev) => [
       {
         id: `local-gps-${Date.now()}`,
         type: "DRIVER_CAPTURED_GPS",
         title: "GPS real capturado",
-        description: `Se registró ubicación del dispositivo (${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}).`,
+        description: `Se registró ubicación del dispositivo (${point.latitude.toFixed(
+          6,
+        )}, ${point.longitude.toFixed(6)}).`,
         createdAt: new Date().toISOString(),
         createdBy: "Chofer",
       },

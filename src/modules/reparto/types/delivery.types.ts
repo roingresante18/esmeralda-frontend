@@ -150,6 +150,7 @@ export interface ConfirmDeliveryPayload {
   orderId: number;
   deliveryStatus:
     | "DELIVERED"
+    | "IN_DELIVERY"
     | "PARTIAL_DELIVERED"
     | "RESCHEDULED"
     | "NOT_DELIVERED";

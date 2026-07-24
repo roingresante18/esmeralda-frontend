@@ -8,22 +8,28 @@ export const getDistanceInMeters = (
 ): number | null => {
   if (!pointA || !pointB) return null;
 
-  const R = 6371e3;
-  const φ1 = toRad(pointA.lat);
-  const φ2 = toRad(pointB.lat);
-  const Δφ = toRad(pointB.lat - pointA.lat);
-  const Δλ = toRad(pointB.lng - pointA.lng);
+  const R = 6_371_000;
+
+  const lat1 = toRad(pointA.latitude);
+  const lat2 = toRad(pointB.latitude);
+
+  const deltaLat = toRad(pointB.latitude - pointA.latitude);
+
+  const deltaLongitude = toRad(pointB.longitude - pointA.longitude);
 
   const a =
-    Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLongitude / 2) ** 2;
 
-  const d = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * d);
+  const distance = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * distance);
 };
 
 export const formatDistanceLabel = (meters?: number | null) => {
   if (meters == null) return "Sin datos";
   if (meters < 1000) return `${meters} m`;
+
   return `${(meters / 1000).toFixed(2)} km`;
 };
 
@@ -44,7 +50,9 @@ export const getGpsConsistency = ({
   | "gpsConsistencyMessage"
 > => {
   const customerToOrder = getDistanceInMeters(customerGps, orderGps);
+
   const orderToDelivered = getDistanceInMeters(orderGps, deliveredGps);
+
   const customerToDelivered = getDistanceInMeters(customerGps, deliveredGps);
 
   if (!customerGps && !orderGps && !deliveredGps) {

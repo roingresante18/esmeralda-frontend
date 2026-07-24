@@ -66,8 +66,8 @@ export const DeliveryConfirmationDialog = ({
           longitude,
         );
 
-        if (distance > 150) {
-          setError("Debes estar dentro de 150 metros del punto de entrega.");
+        if (distance > 15000) {
+          setError("Debes estar dentro de 15000 metros del punto de entrega.");
           return;
         }
       }

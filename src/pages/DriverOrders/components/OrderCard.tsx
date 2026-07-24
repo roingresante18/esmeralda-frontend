@@ -75,7 +75,7 @@ export const OrderCard = ({
             justifyContent="space-between"
             alignItems="center"
           >
-            <Typography fontWeight="bold">Pedido #{order.id}</Typography>
+            <Typography fontWeight="bold">Pedidoooooooo #{order.id}</Typography>
 
             <Chip
               label={getStatusLabel(order.status)}

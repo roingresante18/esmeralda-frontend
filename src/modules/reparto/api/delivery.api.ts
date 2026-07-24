@@ -139,7 +139,9 @@ const USE_MOCK_FALLBACK = false;
 
 export const deliveryApi = {
   async getDriverOrders(): Promise<DeliveryOrder[]> {
-    const res = await api.get("/orders?status=ASSIGNED&lastDays=14");
+    // const res = await api.get("/orders?status=ASSIGNED&lastDays=14");
+    const res = await api.get("/orders?lastDays=5");
+
     return (res.data ?? []).map(adaptApiOrderToDeliveryOrder);
   },
 
@@ -149,26 +151,70 @@ export const deliveryApi = {
     });
   },
 
+  // async confirmDelivery(payload: ConfirmDeliveryPayload) {
+  //   return api.patch(`/orders/${payload.orderId}/deliver`, {
+  //     new_status: payload.deliveryStatus,
+  //     delivered_at: payload.deliveredAt,
+  //     delivered_latitude: payload.deliveredGps.latitude,
+  //     delivered_longitude: payload.deliveredGps.longitude,
+  //     delivered_accuracy: payload.deliveredGps.accuracy,
+  //     payment_method: payload.paymentMethod,
+  //     amount_collected_cash: payload.amountCollectedCash,
+  //     amount_collected_transfer: payload.amountCollectedTransfer,
+  //     products: payload.products.map((p) => ({
+  //       product_id: p.productId,
+  //       quantity_delivered: p.quantityDelivered,
+  //       delivered: p.delivered,
+  //     })),
+  //     delivery_observation: payload.deliveryObservation,
+  //     delivered_by_user_id: payload.deliveredByUserId,
+  //   });
+  // },
   async confirmDelivery(payload: ConfirmDeliveryPayload) {
-    return api.patch(`/orders/${payload.orderId}/deliver`, {
+    const latitude = Number(payload.deliveredGps.latitude);
+    const longitude = Number(payload.deliveredGps.longitude);
+    const accuracy = Number(payload.deliveredGps.accuracy);
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      throw new Error(
+        "No se puede confirmar la entrega: las coordenadas GPS son inválidas.",
+      );
+    }
+
+    const requestBody = {
       new_status: payload.deliveryStatus,
       delivered_at: payload.deliveredAt,
-      delivered_latitude: payload.deliveredGps.latitude,
-      delivered_longitude: payload.deliveredGps.longitude,
-      delivered_accuracy: payload.deliveredGps.accuracy,
+
+      delivery_latitude: latitude,
+      delivery_longitude: longitude,
+
+      delivered_accuracy: Number.isFinite(accuracy) ? accuracy : undefined,
+
       payment_method: payload.paymentMethod,
       amount_collected_cash: payload.amountCollectedCash,
       amount_collected_transfer: payload.amountCollectedTransfer,
-      products: payload.products.map((p) => ({
-        product_id: p.productId,
-        quantity_delivered: p.quantityDelivered,
-        delivered: p.delivered,
+
+      products: payload.products.map((product) => ({
+        product_id: product.productId,
+        quantity_delivered: product.quantityDelivered,
+        delivered: product.delivered,
       })),
+
       delivery_observation: payload.deliveryObservation,
       delivered_by_user_id: payload.deliveredByUserId,
-    });
-  },
+    };
 
+    console.log("Payload enviado para confirmar entrega:", requestBody);
+
+    return api.patch(`/orders/${payload.orderId}/deliver`, requestBody);
+  },
   async getSettlement(
     driverId: number,
     date: string,
