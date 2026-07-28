@@ -1,309 +1,120 @@
-// import {
-//   Card,
-//   CardContent,
-//   Stack,
-//   Typography,
-//   Chip,
-//   Button,
-//   IconButton,
-//   Divider,
-//   CircularProgress,
-// } from "@mui/material";
-// import CallIcon from "@mui/icons-material/Call";
-// import MapIcon from "@mui/icons-material/Map";
-// import NavigationIcon from "@mui/icons-material/Navigation";
-// import VisibilityIcon from "@mui/icons-material/Visibility";
-// import PaidIcon from "@mui/icons-material/Paid";
-// import MyLocationIcon from "@mui/icons-material/MyLocation";
-// import type { DeliveryOrder } from "../../types/delivery.types";
-// import { StatusChip } from "../shared/StatusChip";
-
-// interface Props {
-//   order: DeliveryOrder;
-//   onOpenDetail: (order: DeliveryOrder) => void;
-//   onStartDelivery: (order: DeliveryOrder) => void;
-//   loading?: boolean;
-// }
-
-// const getTargetGps = (order: DeliveryOrder) =>
-//   order.orderGps ?? order.customerGps;
-
-// const getAlreadyPaid = (order: DeliveryOrder) =>
-//   Number(order.paymentSummary?.total_paid ?? 0);
-
-// const getPendingAmount = (order: DeliveryOrder) =>
-//   Math.max(0, Number(order.amountToCharge ?? 0) - getAlreadyPaid(order));
-
-// export const DriverOrderCard = ({
-//   order,
-//   onOpenDetail,
-//   onStartDelivery,
-//   loading = false,
-// }: Props) => {
-//   const gps = getTargetGps(order);
-//   const alreadyPaid = getAlreadyPaid(order);
-//   const pendingAmount = getPendingAmount(order);
-
-//   const openMaps = () => {
-//     if (!gps) return;
-
-//     window.open(
-//       `https://www.google.com/maps?q=${gps.lat},${gps.lng}`,
-//       "_blank",
-//     );
-//   };
-
-//   const navigateTo = () => {
-//     if (!gps) return;
-
-//     window.open(
-//       `https://www.google.com/maps/dir/?api=1&destination=${gps.lat},${gps.lng}`,
-//       "_blank",
-//     );
-//   };
-
-//   return (
-//     <Card
-//       sx={{
-//         borderRadius: 3,
-//         border: "1px solid",
-//         borderColor: "divider",
-//         boxShadow: "none",
-//       }}
-//     >
-//       <CardContent sx={{ p: 1.6, "&:last-child": { pb: 1.6 } }}>
-//         <Stack spacing={1.2}>
-//           <Stack
-//             direction="row"
-//             justifyContent="space-between"
-//             alignItems="flex-start"
-//             spacing={1}
-//           >
-//             <Stack spacing={0.35} minWidth={0}>
-//               <Typography fontWeight={800}>
-//                 #{order.id} · {order.customerName}
-//               </Typography>
-
-//               <Typography variant="body2" color="text.secondary">
-//                 {order.address}
-//               </Typography>
-
-//               <Typography variant="body2" color="text.secondary">
-//                 {order.municipality} · {order.zone}
-//               </Typography>
-//             </Stack>
-
-//             <StatusChip status={order.deliveryStatus} />
-//           </Stack>
-
-//           <Stack direction="row" spacing={1} flexWrap="wrap">
-//             <Chip
-//               icon={<PaidIcon />}
-//               label={`Total $${Number(order.amountToCharge).toLocaleString("es-AR")}`}
-//               color="success"
-//               size="small"
-//             />
-
-//             <Chip label={order.paymentMethod} size="small" variant="outlined" />
-
-//             {alreadyPaid > 0 && (
-//               <Chip
-//                 label={`Adelanto $${alreadyPaid.toLocaleString("es-AR")}`}
-//                 size="small"
-//                 color="secondary"
-//                 variant="outlined"
-//               />
-//             )}
-
-//             <Chip
-//               label={`Saldo $${pendingAmount.toLocaleString("es-AR")}`}
-//               size="small"
-//               color={pendingAmount > 0 ? "warning" : "success"}
-//               variant={pendingAmount > 0 ? "filled" : "outlined"}
-//             />
-
-//             <Chip
-//               icon={<MyLocationIcon />}
-//               label={
-//                 order.orderGps
-//                   ? "GPS operativo"
-//                   : order.customerGps
-//                     ? "GPS cliente"
-//                     : "Sin GPS"
-//               }
-//               size="small"
-//               color={gps ? "info" : "default"}
-//               variant={gps ? "filled" : "outlined"}
-//             />
-
-//             {order.routeOrder ? (
-//               <Chip label={`Ruta ${order.routeOrder}`} size="small" />
-//             ) : null}
-//           </Stack>
-
-//           {(order.notes ?? "").trim() ? (
-//             <>
-//               <Divider />
-//               <Typography variant="body2" color="text.secondary">
-//                 {order.notes}
-//               </Typography>
-//             </>
-//           ) : null}
-
-//           <Stack direction="row" spacing={1}>
-//             {order.phone ? (
-//               <IconButton color="primary" href={`tel:${order.phone}`}>
-//                 <CallIcon />
-//               </IconButton>
-//             ) : (
-//               <IconButton color="primary" disabled>
-//                 <CallIcon />
-//               </IconButton>
-//             )}
-
-//             <IconButton color="primary" onClick={openMaps} disabled={!gps}>
-//               <MapIcon />
-//             </IconButton>
-
-//             <IconButton color="primary" onClick={navigateTo} disabled={!gps}>
-//               <NavigationIcon />
-//             </IconButton>
-
-//             <IconButton color="primary" onClick={() => onOpenDetail(order)}>
-//               <VisibilityIcon />
-//             </IconButton>
-//           </Stack>
-
-//           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-//             {order.deliveryStatus === "ASSIGNED" && (
-//               <Button
-//                 variant="contained"
-//                 color="warning"
-//                 fullWidth
-//                 onClick={() => onStartDelivery(order)}
-//                 disabled={loading}
-//                 startIcon={
-//                   loading ? (
-//                     <CircularProgress size={16} color="inherit" />
-//                   ) : undefined
-//                 }
-//               >
-//                 {loading ? "Iniciando..." : "Iniciar reparto"}
-//               </Button>
-//             )}
-
-//             <Button
-//               variant="outlined"
-//               fullWidth
-//               onClick={() => onOpenDetail(order)}
-//               disabled={loading}
-//             >
-//               Ver detalle
-//             </Button>
-//           </Stack>
-//         </Stack>
-//       </CardContent>
-//     </Card>
-//   );
-// };
-
 import {
+  Button,
   Card,
   CardContent,
+  Chip,
+  IconButton,
   Stack,
   Typography,
-  Chip,
-  Button,
-  IconButton,
 } from "@mui/material";
+
 import CallIcon from "@mui/icons-material/Call";
 import MapIcon from "@mui/icons-material/Map";
 import NavigationIcon from "@mui/icons-material/Navigation";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+
 import type { DeliveryOrder } from "../../types/delivery.types";
+
 import { StatusChip } from "../shared/StatusChip";
 
 interface Props {
   order: DeliveryOrder;
   onOpenDetail: (order: DeliveryOrder) => void;
-  onStartDelivery: (order: DeliveryOrder) => void;
-  startingOrderId?: number | null;
 }
 
-const getCardVisualByStatus = (status: DeliveryOrder["deliveryStatus"]) => {
-  switch (status) {
-    case "ASSIGNED":
-      return {
-        borderColor: "warning.main",
-        backgroundColor: "rgba(255, 152, 0, 0.06)",
-      };
-    case "IN_DELIVERY":
-      return {
-        borderColor: "info.main",
-        backgroundColor: "rgba(25, 118, 210, 0.08)",
-      };
-    case "DELIVERED":
-      return {
-        borderColor: "success.main",
-        backgroundColor: "rgba(46, 125, 50, 0.08)",
-      };
-    default:
-      return {
-        borderColor: "divider",
-        backgroundColor: "#fff",
-      };
+const formatCurrency = (value: number): string =>
+  `$${Number(value || 0).toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatDeliveryDate = (value?: string | null): string => {
+  if (!value) {
+    return "Sin fecha programada";
   }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Fecha inválida";
+  }
+
+  return date.toLocaleString("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 };
 
-export const DriverOrderCard = ({
-  order,
-  onOpenDetail,
-  onStartDelivery,
-  startingOrderId,
-}: Props) => {
-  const visual = getCardVisualByStatus(order.deliveryStatus);
+const getTotalPendingProducts = (order: DeliveryOrder): number =>
+  order.products.reduce(
+    (total, product) => total + Number(product.quantityPending || 0),
+    0,
+  );
+
+export const DriverOrderCard = ({ order, onOpenDetail }: Props) => {
   const gps = order.orderGps ?? order.customerGps;
+
   const callHref = order.phone ? `tel:${order.phone}` : null;
 
+  const totalPendingProducts = getTotalPendingProducts(order);
+
   const openMaps = () => {
-    if (!gps) return;
-    window.open(
-      `https://www.google.com/maps?q=${gps.latitude},${gps.longitude}`,
-      "_blank",
-    );
+    if (!gps) {
+      return;
+    }
+
+    const url = new URL("https://www.google.com/maps");
+
+    url.searchParams.set("q", `${gps.latitude},${gps.longitude}`);
+
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   };
 
   const navigateTo = () => {
-    if (!gps) return;
-    window.open(
-      `https://www.google.com/maps/dir/?api=1&destination=${gps.latitude},${gps.longitude}`,
-      "_blank",
-    );
+    if (!gps) {
+      return;
+    }
+
+    const url = new URL("https://www.google.com/maps/dir/");
+
+    url.searchParams.set("api", "1");
+
+    url.searchParams.set("destination", `${gps.latitude},${gps.longitude}`);
+
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   };
 
   return (
     <Card
+      elevation={0}
       sx={{
         borderRadius: 3,
         border: "1.5px solid",
-        borderColor: visual.borderColor,
-        backgroundColor: visual.backgroundColor,
+        borderColor: "info.main",
+        backgroundColor: "rgba(25, 118, 210, 0.06)",
       }}
     >
       <CardContent>
-        <Stack spacing={1.2}>
+        <Stack spacing={1.25}>
           <Stack
             direction="row"
             justifyContent="space-between"
             alignItems="flex-start"
+            spacing={1}
           >
-            <Stack spacing={0.4}>
-              <Typography fontWeight={800}>
-                #{order.id} · {order.customerName}
+            <Stack spacing={0.4} minWidth={0}>
+              <Typography fontWeight={900} noWrap>
+                Pedido #{order.id}
               </Typography>
+
+              <Typography fontWeight={700} noWrap>
+                {order.customerName}
+              </Typography>
+
               <Typography variant="body2" color="text.secondary">
                 {order.address}
               </Typography>
+
               <Typography variant="body2" color="text.secondary">
                 {order.municipality} · {order.zone}
               </Typography>
@@ -312,71 +123,95 @@ export const DriverOrderCard = ({
             <StatusChip status={order.deliveryStatus} />
           </Stack>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
             <Chip
-              label={`$${Number(order.amountToCharge || 0).toLocaleString(
-                "es-AR",
-                {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                },
-              )}`}
+              label={formatCurrency(order.amountToCharge)}
               color="success"
               size="small"
             />
-            <Chip label={order.paymentMethod} size="small" variant="outlined" />
-            {order.routeOrder ? (
+
+            <Chip
+              label={`Pago: ${order.paymentMethod}`}
+              size="small"
+              variant="outlined"
+            />
+
+            <Chip
+              label={`Pendiente: ${totalPendingProducts}`}
+              size="small"
+              color={totalPendingProducts > 0 ? "warning" : "success"}
+              variant="outlined"
+            />
+
+            {order.routeOrder != null ? (
               <Chip label={`Ruta ${order.routeOrder}`} size="small" />
             ) : null}
           </Stack>
 
-          <Stack direction="row" spacing={1}>
+          <Typography variant="caption" color="text.secondary">
+            Entrega programada: {formatDeliveryDate(order.deliveryDate)}
+          </Typography>
+
+          <Stack direction="row" spacing={0.75}>
             {callHref ? (
-              <IconButton color="primary" component="a" href={callHref}>
+              <IconButton
+                color="primary"
+                component="a"
+                href={callHref}
+                aria-label={`Llamar a ${order.customerName}`}
+              >
                 <CallIcon />
               </IconButton>
             ) : (
-              <IconButton color="primary" disabled>
+              <IconButton
+                color="primary"
+                disabled
+                aria-label="Cliente sin teléfono"
+              >
                 <CallIcon />
               </IconButton>
             )}
 
-            <IconButton color="primary" onClick={openMaps} disabled={!gps}>
+            <IconButton
+              color="primary"
+              onClick={openMaps}
+              disabled={!gps}
+              aria-label="Ver ubicación en el mapa"
+            >
               <MapIcon />
             </IconButton>
 
-            <IconButton color="primary" onClick={navigateTo} disabled={!gps}>
+            <IconButton
+              color="primary"
+              onClick={navigateTo}
+              disabled={!gps}
+              aria-label="Navegar hasta el cliente"
+            >
               <NavigationIcon />
             </IconButton>
 
-            <IconButton color="primary" onClick={() => onOpenDetail(order)}>
+            <IconButton
+              color="primary"
+              onClick={() => onOpenDetail(order)}
+              aria-label="Ver detalle del pedido"
+            >
               <VisibilityIcon />
             </IconButton>
           </Stack>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-            {order.deliveryStatus === "ASSIGNED" && (
-              <Button
-                variant="contained"
-                color="warning"
-                fullWidth
-                onClick={() => onStartDelivery(order)}
-                disabled={startingOrderId === order.id}
-              >
-                {startingOrderId === order.id
-                  ? "Iniciando..."
-                  : "Iniciar reparto"}
-              </Button>
-            )}
+          {!gps ? (
+            <Typography variant="caption" color="warning.main" fontWeight={700}>
+              El pedido no tiene coordenadas disponibles.
+            </Typography>
+          ) : null}
 
-            <Button
-              variant="outlined"
-              fullWidth
-              onClick={() => onOpenDetail(order)}
-            >
-              Ver detalle
-            </Button>
-          </Stack>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => onOpenDetail(order)}
+          >
+            Gestionar entrega
+          </Button>
         </Stack>
       </CardContent>
     </Card>

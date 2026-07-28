@@ -7,6 +7,12 @@ export type DeliveryStatus =
   | "RESCHEDULED"
   | "NOT_DELIVERED";
 
+export type DeliveryResultStatus =
+  | "DELIVERED"
+  | "PARTIAL_DELIVERED"
+  | "RESCHEDULED"
+  | "NOT_DELIVERED";
+
 export type PaymentMethod = "CASH" | "TRANSFER" | "BOTH";
 
 export type ExpenseType = "TOLL" | "BROMATOLOGY" | "FUEL" | "OTHER";
@@ -46,8 +52,33 @@ export interface GPSPoint {
 export interface DeliveryProduct {
   productId: number;
   productName: string;
+
+  /**
+   * Cantidad original incluida en el pedido.
+   */
   quantityOrdered: number;
+
+  /**
+   * Cantidad acumulada entregada en intentos anteriores.
+   */
+  quantityPreviouslyDelivered: number;
+
+  /**
+   * Cantidad pendiente antes de iniciar el intento actual.
+   */
+  quantityPending: number;
+
+  /**
+   * Cantidad entregada únicamente en el intento actual.
+   *
+   * Este es el valor que se envía al backend como
+   * quantity_delivered.
+   */
   quantityDelivered: number;
+
+  /**
+   * Indica si se entregó alguna cantidad durante este intento.
+   */
   delivered: boolean;
 }
 
@@ -114,6 +145,24 @@ export interface DriverDailySettlement {
   auditLog: DeliveryAuditEntry[];
 }
 
+/**
+ * Respuesta esperada desde:
+ *
+ * GET /orders/my-delivery-summary?date=YYYY-MM-DD
+ */
+export interface DriverDailyDeliverySummary {
+  date: string;
+  assignedOrders: number;
+  activeOrders: number;
+  deliveredOrders: number;
+  partialDeliveredOrders: number;
+  rescheduledOrders: number;
+  notDeliveredOrders: number;
+  cashCollected: number;
+  transferCollected: number;
+  totalCollected: number;
+}
+
 export interface DeliveryDashboardKpis {
   totalAssigned: number;
   totalToday: number;
@@ -148,12 +197,7 @@ export interface DeliveryFilters {
 
 export interface ConfirmDeliveryPayload {
   orderId: number;
-  deliveryStatus:
-    | "DELIVERED"
-    | "IN_DELIVERY"
-    | "PARTIAL_DELIVERED"
-    | "RESCHEDULED"
-    | "NOT_DELIVERED";
+  deliveryStatus: DeliveryResultStatus;
   deliveredGps: GPSPoint;
   deliveredAt: string;
   paymentMethod: PaymentMethod;
@@ -161,7 +205,6 @@ export interface ConfirmDeliveryPayload {
   amountCollectedTransfer: number;
   products: DeliveryProduct[];
   deliveryObservation?: string;
-  deliveredByUserId?: number;
 }
 
 export interface PreparationSummary {

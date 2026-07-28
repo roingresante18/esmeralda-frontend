@@ -1,35 +1,39 @@
 import { useState } from "react";
+
 import {
   Alert,
+  Box,
+  Button,
+  CircularProgress,
   Container,
   Drawer,
   Stack,
-  CircularProgress,
-  Button,
-  Box,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+
+import RefreshIcon from "@mui/icons-material/Refresh";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+
 import { useDeliveryDashboard } from "../hooks/useDeliveryDashboard";
+
 import { DriverFiltersBar } from "../components/dashboard/DriverFiltersBar";
 import { DeliveryKpiStrip } from "../components/dashboard/DeliveryKpiStrip";
 import { MunicipalityList } from "../components/dashboard/MunicipalityList";
 import { DeliveryHeader } from "../components/dashboard/DeliveryHeader";
 import { DeliveryAlertBanner } from "../components/dashboard/DeliveryAlertBanner";
 import { EmptyState } from "../components/shared/EmptyState";
+
 import type { DeliveryOrder } from "../types/delivery.types";
-import { deliveryApi } from "../api/delivery.api";
+
 import { DeliveryOrderDetailPage } from "./DeliveryOrderDetailPage";
-import AltRouteIcon from "@mui/icons-material/AltRoute";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { useNavigate } from "react-router-dom";
 
 export default function DeliveryDashboardPage() {
   const {
     municipalityGroups,
     loading,
     error,
+    summaryError,
     fetchOrders,
     filters,
     setFilters,
@@ -43,37 +47,26 @@ export default function DeliveryDashboardPage() {
   const [selectedOrder, setSelectedOrder] = useState<DeliveryOrder | null>(
     null,
   );
+
   const [actionError, setActionError] = useState<string | null>(null);
-  const [startingOrderId, setStartingOrderId] = useState<number | null>(null);
+
   const [filtersOpen, setFiltersOpen] = useState(false);
+
   const loggedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  const navigate = useNavigate();
   const theme = useTheme();
+
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const safeRefresh = async () => {
     setActionError(null);
+
     try {
       await fetchOrders();
-    } catch (e) {
-      console.error(e);
+    } catch (requestError) {
+      console.error(requestError);
+
       setActionError("No se pudo actualizar el tablero.");
-    }
-  };
-
-  const handleStartDelivery = async (order: DeliveryOrder) => {
-    try {
-      setActionError(null);
-      setStartingOrderId(order.id);
-
-      await deliveryApi.updateOrderStatus(order.id, "IN_DELIVERY");
-      await fetchOrders();
-    } catch (e) {
-      console.error(e);
-      setActionError("No se pudo iniciar el reparto del pedido.");
-    } finally {
-      setStartingOrderId(null);
     }
   };
 
@@ -81,8 +74,15 @@ export default function DeliveryDashboardPage() {
     <Container
       maxWidth="lg"
       sx={{
-        py: { xs: 1.25, sm: 1.5, md: 3 },
-        px: { xs: 1, sm: 2 },
+        py: {
+          xs: 1.25,
+          sm: 1.5,
+          md: 3,
+        },
+        px: {
+          xs: 1,
+          sm: 2,
+        },
       }}
     >
       <Stack spacing={1.5}>
@@ -92,23 +92,20 @@ export default function DeliveryDashboardPage() {
         />
 
         <Stack
-          direction={{ xs: "column", sm: "row" }}
+          direction={{
+            xs: "column",
+            sm: "row",
+          }}
           spacing={1}
-          sx={{ width: "100%" }}
+          sx={{
+            width: "100%",
+          }}
         >
-          {/* <Button
-            variant="outlined"
-            startIcon={<AltRouteIcon />}
-            onClick={() => navigate("/reparto/municipios")}
-            fullWidth
-          >
-            Ver municipios
-          </Button> */}
-
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={safeRefresh}
+            disabled={loading}
             fullWidth
           >
             Actualizar
@@ -124,11 +121,22 @@ export default function DeliveryDashboardPage() {
           </Button>
         </Stack>
 
+        {/*
+         * Los KPI permanecen siempre visibles arriba del listado.
+         */}
+        <DeliveryKpiStrip kpis={kpis} />
+
         <DeliveryAlertBanner next12hCount={next12hCount} />
 
         {error ? (
           <Alert severity="error" sx={{ borderRadius: 3 }}>
             {error}
+          </Alert>
+        ) : null}
+
+        {summaryError ? (
+          <Alert severity="warning" sx={{ borderRadius: 3 }}>
+            {summaryError}
           </Alert>
         ) : null}
 
@@ -138,9 +146,7 @@ export default function DeliveryDashboardPage() {
           </Alert>
         ) : null}
 
-        <DeliveryKpiStrip kpis={kpis} />
-
-        {!isMobile && (
+        {!isMobile ? (
           <DriverFiltersBar
             filters={filters}
             setFilters={setFilters}
@@ -148,7 +154,7 @@ export default function DeliveryDashboardPage() {
             municipalities={municipalities}
             municipalitiesByZone={municipalitiesByZone}
           />
-        )}
+        ) : null}
 
         {loading ? (
           <Stack alignItems="center" py={5}>
@@ -156,16 +162,14 @@ export default function DeliveryDashboardPage() {
           </Stack>
         ) : municipalityGroups.length === 0 ? (
           <EmptyState
-            title="No hay pedidos para mostrar"
-            description="Probá cambiando los filtros o verificá las asignaciones desde logística."
+            title="No hay pedidos activos para mostrar"
+            description="No existen entregas pendientes con los filtros seleccionados."
           />
         ) : (
           <Box>
             <MunicipalityList
               groups={municipalityGroups}
               onOpenDetail={setSelectedOrder}
-              onStartDelivery={handleStartDelivery}
-              startingOrderId={startingOrderId}
             />
           </Box>
         )}
@@ -200,7 +204,10 @@ export default function DeliveryDashboardPage() {
         onClose={() => setSelectedOrder(null)}
         PaperProps={{
           sx: {
-            width: { xs: "100%", sm: 520 },
+            width: {
+              xs: "100%",
+              sm: 520,
+            },
             maxWidth: "100%",
           },
         }}
@@ -211,7 +218,7 @@ export default function DeliveryDashboardPage() {
             onClose={() => setSelectedOrder(null)}
             onSuccess={() => {
               setSelectedOrder(null);
-              fetchOrders();
+              void fetchOrders();
             }}
           />
         ) : null}

@@ -1,190 +1,74 @@
-// import api from "../../../api/api";
-// import type {
-//   ConfirmDeliveryPayload,
-//   DeliveryOrder,
-//   DriverDailySettlement,
-//   DriverExpense,
-//   ConfirmDeliveryDataPayload,
-// } from "../types/delivery.types";
-// import { adaptApiOrderToDeliveryOrder } from "./delivery.adapters";
-
-// const USE_MOCK_FALLBACK = false;
-
-// export const deliveryApi = {
-//   async getDriverOrders(): Promise<DeliveryOrder[]> {
-//     const res = await api.get("/orders?status=ASSIGNED&lastDays=14");
-//     return (res.data ?? []).map(adaptApiOrderToDeliveryOrder);
-//   },
-
-//   async updateOrderStatus(orderId: number, newStatus: string) {
-//     return api.patch(`/orders/${orderId}/status`, {
-//       new_status: newStatus,
-//     });
-//   },
-
-//   async confirmDelivery(payload: ConfirmDeliveryPayload) {
-//     return api.patch(`/orders/${payload.orderId}/deliver`, {
-//       new_status: payload.deliveryStatus,
-//       delivered_at: payload.deliveredAt,
-//       delivered_latitude: payload.deliveredGps.latitude,
-//       delivered_longitude: payload.deliveredGps.longitude,
-//       delivered_accuracy: payload.deliveredGps.accuracy,
-//       payment_method: payload.paymentMethod,
-//       amount_collected_cash: payload.amountCollectedCash,
-//       amount_collected_transfer: payload.amountCollectedTransfer,
-//       products: payload.products.map((p) => ({
-//         product_id: p.productId,
-//         quantity_delivered: p.quantityDelivered,
-//         delivered: p.delivered,
-//       })),
-//       delivery_observation: payload.deliveryObservation,
-//       delivered_by_user_id: payload.deliveredByUserId,
-//     });
-//   },
-
-//   async getSettlement(
-//     driverId: number,
-//     date: string,
-//   ): Promise<DriverDailySettlement> {
-//     const res = await api.get(`/delivery-settlements/${driverId}?date=${date}`);
-//     return res.data;
-//   },
-
-//   async saveOpeningCash(driverId: number, date: string, openingCash: number) {
-//     return api.post(`/delivery-settlements/${driverId}/opening-cash`, {
-//       date,
-//       openingCash,
-//     });
-//   },
-
-//   async createExpense(
-//     driverId: number,
-//     date: string,
-//     expense: Omit<DriverExpense, "id">,
-//   ) {
-//     return api.post(`/delivery-settlements/${driverId}/expenses`, {
-//       date,
-//       ...expense,
-//     });
-//   },
-
-//   async declareClosingBalance(
-//     driverId: number,
-//     date: string,
-//     declaredClosingBalance: number,
-//   ) {
-//     return api.post(`/delivery-settlements/${driverId}/close`, {
-//       date,
-//       declaredClosingBalance,
-//     });
-//   },
-
-//   async confirmDeliveryData(payload: ConfirmDeliveryDataPayload) {
-//     try {
-//       return await api.patch(
-//         `/orders/${payload.orderId}/confirm-delivery-data`,
-//         {
-//           delivery_date: payload.deliveryDate,
-//           payment_method: payload.paymentMethod,
-//           address: payload.address,
-//           municipality: payload.municipality,
-//           zone: payload.zone,
-//           customer_gps: payload.customerGps
-//             ? {
-//                 lat: payload.customerGps.latitude,
-//                 lng: payload.customerGps.longitude,
-//                 accuracy: payload.customerGps.accuracy,
-//                 source: payload.customerGps.source,
-//                 captured_at: payload.customerGps.capturedAt,
-//               }
-//             : null,
-//           order_gps: payload.orderGps
-//             ? {
-//                 lat: payload.orderGps.latitude,
-//                 lng: payload.orderGps.longitude,
-//                 accuracy: payload.orderGps.accuracy,
-//                 source: payload.orderGps.source,
-//                 captured_at: payload.orderGps.capturedAt,
-//               }
-//             : null,
-//           notes: payload.notes,
-//         },
-//       );
-//     } catch (error) {
-//       if (USE_MOCK_FALLBACK) {
-//         return Promise.resolve({
-//           data: {
-//             ok: true,
-//             orderId: payload.orderId,
-//             status: "confirmed-for-delivery",
-//           },
-//         });
-//       }
-
-//       throw error;
-//     }
-//   },
-// };
 import api from "../../../api/api";
+
 import type {
   ConfirmDeliveryPayload,
+  ConfirmDeliveryDataPayload,
   DeliveryOrder,
+  DriverDailyDeliverySummary,
   DriverDailySettlement,
   DriverExpense,
-  ConfirmDeliveryDataPayload,
 } from "../types/delivery.types";
+
 import { adaptApiOrderToDeliveryOrder } from "./delivery.adapters";
 
 const USE_MOCK_FALLBACK = false;
 
 export const deliveryApi = {
   async getDriverOrders(): Promise<DeliveryOrder[]> {
-    // const res = await api.get("/orders?status=ASSIGNED&lastDays=14");
-    const res = await api.get("/orders/my-deliveries?lastDays=5");
-
-    return (res.data ?? []).map(adaptApiOrderToDeliveryOrder);
-  },
-
-  async updateOrderStatus(orderId: number, newStatus: string) {
-    return api.patch(`/orders/${orderId}/status`, {
-      new_status: newStatus,
+    const response = await api.get("/orders/my-deliveries", {
+      params: {
+        lastDays: 90,
+      },
     });
+
+    const orders = Array.isArray(response.data) ? response.data : [];
+
+    return orders.map(adaptApiOrderToDeliveryOrder);
   },
 
-  // async confirmDelivery(payload: ConfirmDeliveryPayload) {
-  //   return api.patch(`/orders/${payload.orderId}/deliver`, {
-  //     new_status: payload.deliveryStatus,
-  //     delivered_at: payload.deliveredAt,
-  //     delivered_latitude: payload.deliveredGps.latitude,
-  //     delivered_longitude: payload.deliveredGps.longitude,
-  //     delivered_accuracy: payload.deliveredGps.accuracy,
-  //     payment_method: payload.paymentMethod,
-  //     amount_collected_cash: payload.amountCollectedCash,
-  //     amount_collected_transfer: payload.amountCollectedTransfer,
-  //     products: payload.products.map((p) => ({
-  //       product_id: p.productId,
-  //       quantity_delivered: p.quantityDelivered,
-  //       delivered: p.delivered,
-  //     })),
-  //     delivery_observation: payload.deliveryObservation,
-  //     delivered_by_user_id: payload.deliveredByUserId,
-  //   });
-  // },
+  /**
+   * Resumen de toda la actividad realizada por el repartidor
+   * durante la fecha seleccionada.
+   *
+   * Este endpoint todavía debe crearse en el backend.
+   */
+  async getDriverDailySummary(
+    date: string,
+  ): Promise<DriverDailyDeliverySummary> {
+    const response = await api.get("/orders/my-delivery-summary", {
+      params: {
+        date,
+      },
+    });
+
+    return response.data;
+  },
+
   async confirmDelivery(payload: ConfirmDeliveryPayload) {
     const latitude = Number(payload.deliveredGps.latitude);
     const longitude = Number(payload.deliveredGps.longitude);
-    const accuracy = Number(payload.deliveredGps.accuracy);
+
+    const accuracy =
+      payload.deliveredGps.accuracy != null
+        ? Number(payload.deliveredGps.accuracy)
+        : undefined;
 
     if (
       !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
       latitude < -90 ||
       latitude > 90 ||
+      !Number.isFinite(longitude) ||
       longitude < -180 ||
       longitude > 180
     ) {
       throw new Error(
         "No se puede confirmar la entrega: las coordenadas GPS son inválidas.",
+      );
+    }
+
+    if (accuracy != null && (!Number.isFinite(accuracy) || accuracy < 0)) {
+      throw new Error(
+        "No se puede confirmar la entrega: la precisión GPS es inválida.",
       );
     }
 
@@ -194,33 +78,39 @@ export const deliveryApi = {
 
       delivery_latitude: latitude,
       delivery_longitude: longitude,
-
-      delivered_accuracy: Number.isFinite(accuracy) ? accuracy : undefined,
+      delivered_accuracy: accuracy,
 
       payment_method: payload.paymentMethod,
-      amount_collected_cash: payload.amountCollectedCash,
-      amount_collected_transfer: payload.amountCollectedTransfer,
+      amount_collected_cash: Number(payload.amountCollectedCash || 0),
+      amount_collected_transfer: Number(payload.amountCollectedTransfer || 0),
 
       products: payload.products.map((product) => ({
         product_id: product.productId,
-        quantity_delivered: product.quantityDelivered,
-        delivered: product.delivered,
+
+        /*
+         * Cantidad correspondiente únicamente al intento actual.
+         */
+        quantity_delivered: Number(product.quantityDelivered || 0),
+        delivered: Boolean(product.delivered),
       })),
 
-      delivery_observation: payload.deliveryObservation,
-      delivered_by_user_id: payload.deliveredByUserId,
+      delivery_observation: payload.deliveryObservation?.trim() || undefined,
     };
-
-    console.log("Payload enviado para confirmar entrega:", requestBody);
 
     return api.patch(`/orders/${payload.orderId}/deliver`, requestBody);
   },
+
   async getSettlement(
     driverId: number,
     date: string,
   ): Promise<DriverDailySettlement> {
-    const res = await api.get(`/delivery-settlements/${driverId}?date=${date}`);
-    return res.data;
+    const response = await api.get(`/delivery-settlements/${driverId}`, {
+      params: {
+        date,
+      },
+    });
+
+    return response.data;
   },
 
   async saveOpeningCash(driverId: number, date: string, openingCash: number) {
@@ -263,6 +153,7 @@ export const deliveryApi = {
         address: payload.address,
         municipality: payload.municipality,
         zone: payload.zone,
+
         customer_gps: payload.customerGps
           ? {
               lat: payload.customerGps.latitude,
@@ -272,6 +163,7 @@ export const deliveryApi = {
               captured_at: payload.customerGps.capturedAt,
             }
           : null,
+
         order_gps: payload.orderGps
           ? {
               lat: payload.orderGps.latitude,
@@ -281,6 +173,7 @@ export const deliveryApi = {
               captured_at: payload.orderGps.capturedAt,
             }
           : null,
+
         notes: payload.notes,
       });
     } catch (error) {

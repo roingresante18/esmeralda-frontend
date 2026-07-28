@@ -3,35 +3,31 @@ import {
   AccordionDetails,
   AccordionSummary,
   Badge,
+  Box,
   Stack,
   Typography,
-  Box,
 } from "@mui/material";
+
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+
 import type {
   DeliveryOrder,
   MunicipalityGroup,
 } from "../../types/delivery.types";
+
 import { DriverOrderCard } from "./DriverOrderCard";
 
 interface Props {
   groups: MunicipalityGroup[];
   onOpenDetail: (order: DeliveryOrder) => void;
-  onStartDelivery: (order: DeliveryOrder) => void;
-  startingOrderId?: number | null;
 }
 
-export const MunicipalityList = ({
-  groups,
-  onOpenDetail,
-  onStartDelivery,
-  startingOrderId = null,
-}: Props) => {
+export const MunicipalityList = ({ groups, onOpenDetail }: Props) => {
   return (
     <Stack spacing={1.2}>
       {groups.map((group) => (
         <Accordion
-          key={group.municipality}
+          key={`${group.zone ?? "sin-zona"}-${group.municipality}`}
           defaultExpanded={groups.length === 1}
           disableGutters
           sx={{
@@ -60,7 +56,10 @@ export const MunicipalityList = ({
               direction="row"
               justifyContent="space-between"
               alignItems="center"
-              sx={{ width: "100%", pr: 1 }}
+              sx={{
+                width: "100%",
+                pr: 1,
+              }}
               spacing={1}
             >
               <Stack spacing={0.2} minWidth={0}>
@@ -69,8 +68,8 @@ export const MunicipalityList = ({
                 </Typography>
 
                 <Typography variant="caption" color="text.secondary">
-                  {group.pendingCount} pendientes · {group.deliveredCount}{" "}
-                  cerrados
+                  {group.count}{" "}
+                  {group.count === 1 ? "pedido activo" : "pedidos activos"}
                 </Typography>
 
                 {group.zone ? (
@@ -80,7 +79,12 @@ export const MunicipalityList = ({
                 ) : null}
               </Stack>
 
-              <Box sx={{ flexShrink: 0 }}>
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  pr: 1,
+                }}
+              >
                 <Badge badgeContent={group.count} color="primary" />
               </Box>
             </Stack>
@@ -99,8 +103,6 @@ export const MunicipalityList = ({
                   key={order.id}
                   order={order}
                   onOpenDetail={onOpenDetail}
-                  onStartDelivery={onStartDelivery}
-                  loading={startingOrderId === order.id}
                 />
               ))}
             </Stack>

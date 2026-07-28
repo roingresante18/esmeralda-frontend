@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { deliveryApi } from "../api/delivery.api";
+
 import type {
   DeliveryDashboardKpis,
   DeliveryOrder,
+  DriverDailyDeliverySummary,
 } from "../types/delivery.types";
+
 import {
   groupOrdersByMunicipality,
   sortOrdersByOperationalCriteria,
 } from "../utils/delivery.sorting";
 
-export type DriverDashboardStatusFilter =
-  | "ACTIVE"
-  | "ASSIGNED"
-  | "IN_DELIVERY"
-  | "DELIVERED_12H"
-  | "DELIVERED_24H";
+export type DriverDashboardStatusFilter = "ACTIVE" | "IN_DELIVERY";
 
 export type DriverDashboardFilters = {
   date?: string;
@@ -25,91 +24,135 @@ export type DriverDashboardFilters = {
   onlyNext12h?: boolean;
 };
 
+const getLocalDateValue = (): string => {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getDatePart = (value?: string | null): string | null => {
+  if (!value) return null;
+
+  return value.includes("T") ? value.split("T")[0] : value.substring(0, 10);
+};
+
 const isSameDay = (value?: string | null, date?: string) => {
   if (!value || !date) return false;
-  return value.split("T")[0] === date;
+
+  return getDatePart(value) === date;
 };
 
 const isWithinNext12Hours = (value?: string | null) => {
   if (!value) return false;
-  const now = new Date();
+
   const target = new Date(value);
-  const diff = target.getTime() - now.getTime();
-  return diff >= 0 && diff <= 12 * 60 * 60 * 1000;
+
+  if (Number.isNaN(target.getTime())) {
+    return false;
+  }
+
+  const difference = target.getTime() - Date.now();
+
+  return difference >= 0 && difference <= 12 * 60 * 60 * 1000;
 };
 
-const wasDeliveredInLastHours = (value?: string | null, hours = 12) => {
-  if (!value) return false;
-  const deliveredAt = new Date(value);
-  const diff = Date.now() - deliveredAt.getTime();
-  return diff >= 0 && diff <= hours * 60 * 60 * 1000;
-};
-
-const getPendingAmount = (order: DeliveryOrder) => {
-  const total = Number(order.amountToCharge ?? 0);
-  const alreadyPaid = Number(order.paymentSummary?.total_paid ?? 0);
-  return Math.max(0, total - alreadyPaid);
-};
+const emptySummary = (
+  date: string,
+  activeOrders: number,
+): DriverDailyDeliverySummary => ({
+  date,
+  assignedOrders: activeOrders,
+  activeOrders,
+  deliveredOrders: 0,
+  partialDeliveredOrders: 0,
+  rescheduledOrders: 0,
+  notDeliveredOrders: 0,
+  cashCollected: 0,
+  transferCollected: 0,
+  totalCollected: 0,
+});
 
 export const useDeliveryDashboard = () => {
+  const today = getLocalDateValue();
+
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+
+  const [dailySummary, setDailySummary] = useState<DriverDailyDeliverySummary>(
+    emptySummary(today, 0),
+  );
+
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   const [filters, setFilters] = useState<DriverDashboardFilters>({
-    date: new Date().toISOString().split("T")[0],
-    onlyToday: true,
+    date: today,
+
+    /*
+     * No ocultar asignaciones activas por fecha al ingresar.
+     */
+    onlyToday: false,
+    onlyNext12h: false,
     status: "ACTIVE",
   });
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSummaryError(null);
+
+    const selectedDate = filters.date || getLocalDateValue();
 
     try {
-      const data = await deliveryApi.getDriverOrders();
-      setOrders(data);
-    } catch (e) {
-      console.error(e);
+      const activeOrders = await deliveryApi.getDriverOrders();
+
+      setOrders(activeOrders);
+
+      try {
+        const summary = await deliveryApi.getDriverDailySummary(selectedDate);
+
+        setDailySummary(summary);
+      } catch (summaryRequestError) {
+        console.error(
+          "No se pudo cargar el resumen diario:",
+          summaryRequestError,
+        );
+
+        setDailySummary(emptySummary(selectedDate, activeOrders.length));
+
+        setSummaryError(
+          "El resumen diario todavía no está disponible. Se muestran únicamente los pedidos activos.",
+        );
+      }
+    } catch (requestError) {
+      console.error(requestError);
+
+      setOrders([]);
+
       setError("No se pudieron cargar los pedidos de reparto.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters.date]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  const statusScopedOrders = useMemo(() => {
-    switch (filters.status) {
-      case "ASSIGNED":
-        return orders.filter((o) => o.deliveryStatus === "ASSIGNED");
-
-      case "IN_DELIVERY":
-        return orders.filter((o) => o.deliveryStatus === "IN_DELIVERY");
-
-      case "DELIVERED_12H":
-        return orders.filter(
-          (o) =>
-            o.deliveryStatus === "DELIVERED" &&
-            wasDeliveredInLastHours(o.deliveredAt, 12),
-        );
-
-      case "DELIVERED_24H":
-        return orders.filter(
-          (o) =>
-            o.deliveryStatus === "DELIVERED" &&
-            wasDeliveredInLastHours(o.deliveredAt, 24),
-        );
-
-      case "ACTIVE":
-      default:
-        return orders.filter((o) =>
-          ["ASSIGNED", "IN_DELIVERY"].includes(o.deliveryStatus),
-        );
-    }
-  }, [orders, filters.status]);
+  /*
+   * /my-deliveries ya devuelve únicamente IN_DELIVERY.
+   * Se conserva este filtro como defensa adicional.
+   */
+  const statusScopedOrders = useMemo(
+    () => orders.filter((order) => order.deliveryStatus === "IN_DELIVERY"),
+    [orders],
+  );
 
   const filteredOrders = useMemo(() => {
     return statusScopedOrders.filter((order) => {
@@ -125,7 +168,10 @@ export const useDeliveryDashboard = () => {
         return false;
       }
 
-      if (filters.zone && order.zone !== filters.zone) return false;
+      if (filters.zone && order.zone !== filters.zone) {
+        return false;
+      }
+
       if (filters.municipality && order.municipality !== filters.municipality) {
         return false;
       }
@@ -134,74 +180,47 @@ export const useDeliveryDashboard = () => {
     });
   }, [statusScopedOrders, filters]);
 
-  const municipalityGroups = useMemo(() => {
-    return groupOrdersByMunicipality(filteredOrders).map((group) => ({
-      ...group,
-      orders: sortOrdersByOperationalCriteria(group.orders, null),
-    }));
-  }, [filteredOrders]);
+  const municipalityGroups = useMemo(
+    () =>
+      groupOrdersByMunicipality(filteredOrders).map((group) => ({
+        ...group,
+        orders: sortOrdersByOperationalCriteria(group.orders, null),
+      })),
+    [filteredOrders],
+  );
 
-  const kpis: DeliveryDashboardKpis = useMemo(() => {
-    const pending = orders.filter((o) =>
-      ["ASSIGNED", "IN_DELIVERY", "PENDING_DELIVERY"].includes(
-        o.deliveryStatus,
-      ),
-    ).length;
+  const kpis = useMemo<DeliveryDashboardKpis>(
+    () => ({
+      totalAssigned: dailySummary.assignedOrders,
 
-    const delivered = orders.filter(
-      (o) => o.deliveryStatus === "DELIVERED",
-    ).length;
+      totalToday: dailySummary.assignedOrders,
 
-    const partialDelivered = orders.filter(
-      (o) => o.deliveryStatus === "PARTIAL_DELIVERED",
-    ).length;
+      pending: dailySummary.activeOrders,
 
-    const rescheduled = orders.filter(
-      (o) => o.deliveryStatus === "RESCHEDULED",
-    ).length;
+      delivered: dailySummary.deliveredOrders,
 
-    const notDelivered = orders.filter(
-      (o) => o.deliveryStatus === "NOT_DELIVERED",
-    ).length;
+      partialDelivered: dailySummary.partialDeliveredOrders,
 
-    const deliveredOrders = orders.filter((o) =>
-      ["DELIVERED", "PARTIAL_DELIVERED"].includes(o.deliveryStatus),
-    );
+      rescheduled: dailySummary.rescheduledOrders,
 
-    const cashCollected = deliveredOrders.reduce((acc, order) => {
-      const pendingAmount = getPendingAmount(order);
-      if (order.paymentMethod === "CASH") return acc + pendingAmount;
-      if (order.paymentMethod === "BOTH") return acc + pendingAmount / 2;
-      return acc;
-    }, 0);
+      notDelivered: dailySummary.notDeliveredOrders,
 
-    const transferCollected = deliveredOrders.reduce((acc, order) => {
-      const pendingAmount = getPendingAmount(order);
-      if (order.paymentMethod === "TRANSFER") return acc + pendingAmount;
-      if (order.paymentMethod === "BOTH") return acc + pendingAmount / 2;
-      return acc;
-    }, 0);
+      cashCollected: Number(dailySummary.cashCollected || 0),
 
-    return {
-      totalAssigned: orders.filter((o) => o.deliveryStatus === "ASSIGNED")
-        .length,
-      totalToday: filteredOrders.length,
-      pending,
-      delivered,
-      partialDelivered,
-      rescheduled,
-      notDelivered,
-      cashCollected,
-      transferCollected,
-      totalCollected: cashCollected + transferCollected,
-    };
-  }, [orders, filteredOrders]);
+      transferCollected: Number(dailySummary.transferCollected || 0),
+
+      totalCollected: Number(dailySummary.totalCollected || 0),
+    }),
+    [dailySummary],
+  );
 
   const zones = useMemo(
     () =>
-      [...new Set(statusScopedOrders.map((o) => o.zone).filter(Boolean))].sort(
-        (a, b) => a.localeCompare(b, "es"),
-      ),
+      [
+        ...new Set(
+          statusScopedOrders.map((order) => order.zone).filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, "es")),
     [statusScopedOrders],
   );
 
@@ -209,7 +228,7 @@ export const useDeliveryDashboard = () => {
     () =>
       [
         ...new Set(
-          statusScopedOrders.map((o) => o.municipality).filter(Boolean),
+          statusScopedOrders.map((order) => order.municipality).filter(Boolean),
         ),
       ].sort((a, b) => a.localeCompare(b, "es")),
     [statusScopedOrders],
@@ -220,9 +239,12 @@ export const useDeliveryDashboard = () => {
 
     statusScopedOrders.forEach((order) => {
       const zone = order.zone?.trim();
+
       const municipality = order.municipality?.trim();
 
-      if (!zone || !municipality) return;
+      if (!zone || !municipality) {
+        return;
+      }
 
       if (!map[zone]) {
         map[zone] = [];
@@ -242,23 +264,28 @@ export const useDeliveryDashboard = () => {
 
   const next12hCount = useMemo(
     () =>
-      orders.filter(
-        (o) =>
-          ["ASSIGNED", "IN_DELIVERY"].includes(o.deliveryStatus) &&
-          isWithinNext12Hours(o.deliveryDate),
+      statusScopedOrders.filter((order) =>
+        isWithinNext12Hours(order.deliveryDate),
       ).length,
-    [orders],
+    [statusScopedOrders],
   );
 
   return {
     orders: statusScopedOrders,
     filteredOrders,
     municipalityGroups,
+
+    dailySummary,
+
     loading,
     error,
+    summaryError,
+
     filters,
     setFilters,
+
     fetchOrders,
+
     kpis,
     zones,
     municipalities,
