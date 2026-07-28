@@ -165,7 +165,7 @@ function App() {
             }
           />
           <Route
-            path="/reparto"
+            path="/repartidor"
             element={
               <ProtectedRoute roles={["ADMIN", "LOGISTICA", "REPARTIDOR"]}>
                 <DeliveryDashboardPage />

@@ -140,7 +140,7 @@ const USE_MOCK_FALLBACK = false;
 export const deliveryApi = {
   async getDriverOrders(): Promise<DeliveryOrder[]> {
     // const res = await api.get("/orders?status=ASSIGNED&lastDays=14");
-    const res = await api.get("/orders?lastDays=5");
+    const res = await api.get("/orders/my-deliveries?lastDays=5");
 
     return (res.data ?? []).map(adaptApiOrderToDeliveryOrder);
   },

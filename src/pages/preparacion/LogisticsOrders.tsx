@@ -15,6 +15,7 @@ import {
   Container,
   Chip,
   TextField,
+  MenuItem,
   useTheme,
   useMediaQuery,
   Paper,
@@ -37,7 +38,6 @@ import PaidIcon from "@mui/icons-material/Paid";
 import api from "../../api/api";
 import { formatDateOnlyAR } from "../../utils/date";
 import { ConfirmDeliveryDataDialog } from "../../modules/reparto/components/logistics/ConfirmDeliveryDataDialog";
-import { rowGap } from "@mui/system";
 
 /* ============================================================
    TYPES
@@ -87,6 +87,14 @@ interface Order {
     longitude?: number | string | null;
   };
 }
+
+type DeliveryUser = {
+  id: number;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+};
 
 type AssignStatus = "idle" | "loading";
 
@@ -138,6 +146,30 @@ const getPaymentSummary = (order: Order): PaymentSummary => ({
   total_paid: Number(order.payment_summary?.total_paid ?? 0),
 });
 
+const getDeliveryUserLabel = (user: DeliveryUser) =>
+  user.full_name?.trim() ||
+  user.name?.trim() ||
+  user.email?.trim() ||
+  `Usuario #${user.id}`;
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error !== "object" || error === null) return fallback;
+
+  const response = (
+    error as {
+      response?: { data?: { message?: string | { message?: string } } };
+    }
+  ).response;
+
+  const backendMessage = response?.data?.message;
+
+  if (typeof backendMessage === "string") return backendMessage;
+  if (typeof backendMessage?.message === "string")
+    return backendMessage.message;
+
+  return fallback;
+};
+
 const mapOrderToDialogInput = (order: Order) => ({
   id: order.id,
   notes: order.notes ?? "",
@@ -176,6 +208,10 @@ export default function LogisticsOrders() {
   });
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [assignStatus, setAssignStatus] = useState<AssignStatus>("idle");
+  const [deliveryUsers, setDeliveryUsers] = useState<DeliveryUser[]>([]);
+  const [selectedDeliveryUserId, setSelectedDeliveryUserId] = useState<
+    number | ""
+  >("");
   const [error, setError] = useState<string | null>(null);
 
   const isRowSelected = (orderId: GridRowId) => selectionModel.ids.has(orderId);
@@ -419,13 +455,11 @@ export default function LogisticsOrders() {
     }
   };
   /* ============================================================
-     FETCH - Solo QUALITY_CHECKED
+     FETCH
   ============================================================ */
 
   const fetchOrders = useCallback(async () => {
     try {
-      setError(null);
-
       const res = await api.get("/orders?lastDays=14");
 
       const filtered = Array.isArray(res.data)
@@ -439,37 +473,78 @@ export default function LogisticsOrders() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchOrders();
+  const fetchDeliveryUsers = useCallback(async () => {
+    try {
+      const res = await api.get("/users");
 
-    const interval = setInterval(() => {
+      const users: DeliveryUser[] = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+
+      const deliveryUsersOnly = users.filter((user) => {
+        const role = String(user.role ?? "").toUpperCase();
+        return ["REPARTO", "DELIVERY", "REPARTIDOR"].includes(role);
+      });
+
+      setDeliveryUsers(deliveryUsersOnly);
+    } catch (err) {
+      console.error("Error cargando repartidores:", err);
+      setError("No se pudieron cargar los usuarios de reparto.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchOrders();
+    void fetchDeliveryUsers();
+
+    const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        fetchOrders();
+        void fetchOrders();
       }
     }, 10000);
 
-    return () => clearInterval(interval);
-  }, [fetchOrders]);
+    return () => window.clearInterval(interval);
+  }, [fetchOrders, fetchDeliveryUsers]);
 
   /* ============================================================
      ACTIONS
   ============================================================ */
 
-  const changeStatus = async (id: number, newStatus: string) => {
-    try {
-      await api.patch(`/orders/${id}/status`, {
-        new_status: newStatus,
-      });
+  const assignOneToDelivery = useCallback(
+    async (orderId: number) => {
+      if (!selectedDeliveryUserId) {
+        setError("Seleccioná un repartidor antes de asignar el pedido.");
+        return;
+      }
 
-      await fetchOrders();
-    } catch (err) {
-      console.error("Error cambiando estado del pedido:", err);
-      setError("No se pudo actualizar el estado del pedido.");
-    }
-  };
+      try {
+        setAssignStatus("loading");
+        setError(null);
+
+        await api.patch(`/orders/${orderId}/assign/${selectedDeliveryUserId}`);
+
+        await fetchOrders();
+      } catch (err) {
+        console.error("Error asignando pedido a reparto:", err);
+        setError(
+          getApiErrorMessage(err, "No se pudo asignar el pedido a reparto."),
+        );
+      } finally {
+        setAssignStatus("idle");
+      }
+    },
+    [fetchOrders, selectedDeliveryUserId],
+  );
 
   const assignSelectedToDelivery = async () => {
     if (selectionModel.ids.size === 0) return;
+
+    if (!selectedDeliveryUserId) {
+      setError("Seleccioná un repartidor antes de asignar los pedidos.");
+      return;
+    }
 
     try {
       setAssignStatus("loading");
@@ -489,10 +564,8 @@ export default function LogisticsOrders() {
       }
 
       await Promise.all(
-        assignableIds.map((id) =>
-          api.patch(`/orders/${id}/status`, {
-            new_status: "ASSIGNED",
-          }),
+        assignableIds.map((orderId) =>
+          api.patch(`/orders/${orderId}/assign/${selectedDeliveryUserId}`),
         ),
       );
 
@@ -500,11 +573,17 @@ export default function LogisticsOrders() {
         type: "include",
         ids: new Set<GridRowId>(),
       });
+      setSelectedDeliveryUserId("");
 
       await fetchOrders();
     } catch (err) {
       console.error("Error asignando pedidos a reparto:", err);
-      setError("No se pudieron asignar los pedidos seleccionados a reparto.");
+      setError(
+        getApiErrorMessage(
+          err,
+          "No se pudieron asignar los pedidos seleccionados a reparto.",
+        ),
+      );
     } finally {
       setAssignStatus("idle");
     }
@@ -712,8 +791,12 @@ export default function LogisticsOrders() {
               color="primary"
               size="small"
               fullWidth={isMobile}
-              disabled={!isConfiguredForDelivery(params.row)}
-              onClick={() => changeStatus(params.row.id, "ASSIGNED")}
+              disabled={
+                !isConfiguredForDelivery(params.row) ||
+                !selectedDeliveryUserId ||
+                assignStatus === "loading"
+              }
+              onClick={() => void assignOneToDelivery(params.row.id)}
             >
               Asignar
             </Button>
@@ -721,7 +804,7 @@ export default function LogisticsOrders() {
         ),
       },
     ],
-    [isMobile],
+    [assignOneToDelivery, assignStatus, isMobile, selectedDeliveryUserId],
   );
 
   /* ============================================================
@@ -878,8 +961,12 @@ export default function LogisticsOrders() {
                     <Button
                       variant="contained"
                       fullWidth
-                      disabled={!configured}
-                      onClick={() => changeStatus(order.id, "ASSIGNED")}
+                      disabled={
+                        !configured ||
+                        !selectedDeliveryUserId ||
+                        assignStatus === "loading"
+                      }
+                      onClick={() => void assignOneToDelivery(order.id)}
                     >
                       Asignar a reparto
                     </Button>
@@ -989,6 +1076,30 @@ export default function LogisticsOrders() {
                 spacing={1}
                 sx={{ width: isMobile ? "100%" : "auto" }}
               >
+                <TextField
+                  select
+                  size="small"
+                  label="Repartidor"
+                  value={selectedDeliveryUserId}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSelectedDeliveryUserId(
+                      value === "" ? "" : Number(value),
+                    );
+                  }}
+                  sx={{ minWidth: isMobile ? "100%" : 240 }}
+                  fullWidth={isMobile}
+                  disabled={assignStatus === "loading"}
+                >
+                  <MenuItem value="">Seleccionar repartidor</MenuItem>
+
+                  {deliveryUsers.map((deliveryUser) => (
+                    <MenuItem key={deliveryUser.id} value={deliveryUser.id}>
+                      {getDeliveryUserLabel(deliveryUser)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
                 <Button
                   variant="outlined"
                   startIcon={<PlaylistAddCheckIcon />}
@@ -1019,7 +1130,8 @@ export default function LogisticsOrders() {
                   disabled={
                     assignStatus === "loading" ||
                     !selectionModel.ids.size ||
-                    selectedConfiguredCount === 0
+                    selectedConfiguredCount === 0 ||
+                    !selectedDeliveryUserId
                   }
                   fullWidth={isMobile}
                 >
