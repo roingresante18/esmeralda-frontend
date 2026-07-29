@@ -74,7 +74,7 @@ const AdminPanel: React.FC = () => {
       title: "Reparto",
       icon: <LocalShippingIcon fontSize="large" />,
       color: theme.palette.primary.dark,
-      path: "/reparto",
+      path: "/repartidor",
       description: "Distribución de pedidos",
     },
     {

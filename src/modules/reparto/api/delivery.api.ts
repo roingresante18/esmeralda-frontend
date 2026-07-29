@@ -15,11 +15,7 @@ const USE_MOCK_FALLBACK = false;
 
 export const deliveryApi = {
   async getDriverOrders(): Promise<DeliveryOrder[]> {
-    const response = await api.get("/orders/my-deliveries", {
-      params: {
-        lastDays: 90,
-      },
-    });
+    const response = await api.get("/orders/my-deliveries");
 
     const orders = Array.isArray(response.data) ? response.data : [];
 
