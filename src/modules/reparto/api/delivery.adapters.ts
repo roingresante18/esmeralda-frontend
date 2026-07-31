@@ -156,6 +156,19 @@ const toGps = (
   };
 };
 
+// const toPaymentSummary = (
+//   summary?: ApiOrder["payment_summary"],
+// ): DeliveryPaymentSummary => ({
+//   cash: toNumberOrDefault(summary?.cash),
+//   transfer: toNumberOrDefault(summary?.transfer),
+//   card: toNumberOrDefault(summary?.card),
+//   check: toNumberOrDefault(summary?.check),
+//   other: toNumberOrDefault(summary?.other),
+//   total_paid: toNumberOrDefault(summary?.total_paid),
+// });
+/**
+ * Convierte un resumen recibido directamente desde el backend.
+ */
 const toPaymentSummary = (
   summary?: ApiOrder["payment_summary"],
 ): DeliveryPaymentSummary => ({
@@ -167,6 +180,108 @@ const toPaymentSummary = (
   total_paid: toNumberOrDefault(summary?.total_paid),
 });
 
+/**
+ * Construye el resumen directamente desde order.payments.
+ *
+ * Incluye:
+ *
+ * - adelantos;
+ * - pagos registrados durante entregas;
+ * - ajustes confirmados.
+ *
+ * No suma pagos pendientes, rechazados o cancelados.
+ * Los reembolsos confirmados se restan.
+ */
+const buildPaymentSummaryFromPayments = (
+  payments?: ApiOrder["payments"],
+): DeliveryPaymentSummary => {
+  const summary: DeliveryPaymentSummary = {
+    cash: 0,
+    transfer: 0,
+    card: 0,
+    check: 0,
+    other: 0,
+    total_paid: 0,
+  };
+
+  for (const payment of payments ?? []) {
+    if (payment.status !== "CONFIRMED") {
+      continue;
+    }
+
+    const amount = toNumberOrDefault(payment.amount);
+
+    if (amount <= 0) {
+      continue;
+    }
+
+    /*
+     * Los reembolsos reducen el total pagado.
+     */
+    if (payment.type === "REFUND") {
+      switch (payment.method) {
+        case "CASH":
+          summary.cash -= amount;
+          break;
+
+        case "TRANSFER":
+          summary.transfer -= amount;
+          break;
+
+        case "CARD":
+          summary.card -= amount;
+          break;
+
+        case "CHECK":
+          summary.check -= amount;
+          break;
+
+        default:
+          summary.other -= amount;
+          break;
+      }
+
+      summary.total_paid -= amount;
+      continue;
+    }
+
+    switch (payment.method) {
+      case "CASH":
+        summary.cash += amount;
+        break;
+
+      case "TRANSFER":
+        summary.transfer += amount;
+        break;
+
+      case "CARD":
+        summary.card += amount;
+        break;
+
+      case "CHECK":
+        summary.check += amount;
+        break;
+
+      default:
+        summary.other += amount;
+        break;
+    }
+
+    summary.total_paid += amount;
+  }
+
+  /*
+   * Evitamos valores negativos por datos históricos inconsistentes.
+   */
+  summary.cash = Math.max(summary.cash, 0);
+  summary.transfer = Math.max(summary.transfer, 0);
+  summary.card = Math.max(summary.card, 0);
+  summary.check = Math.max(summary.check, 0);
+  summary.other = Math.max(summary.other, 0);
+  summary.total_paid = Math.max(summary.total_paid, 0);
+
+  return summary;
+};
 const toPayments = (payments?: ApiOrder["payments"]): DeliveryPayment[] =>
   (payments ?? []).map((payment) => ({
     id: payment.id,
@@ -282,6 +397,17 @@ export const adaptApiOrderToDeliveryOrder = (
 
   const amountToCharge = toNumberOrDefault(order.total_amount);
 
+  const normalizedPayments = toPayments(order.payments);
+
+  /*
+   * Si el backend devuelve payment_summary, se utiliza.
+   *
+   * Si no lo devuelve, el resumen se calcula desde los movimientos
+   * reales existentes en order.payments.
+   */
+  const paymentSummary = order.payment_summary
+    ? toPaymentSummary(order.payment_summary)
+    : buildPaymentSummaryFromPayments(order.payments);
   return {
     id: order.id,
 
@@ -344,8 +470,11 @@ export const adaptApiOrderToDeliveryOrder = (
     deliveryObservation: undefined,
     evidencePending: true,
 
-    paymentSummary: toPaymentSummary(order.payment_summary),
+    // paymentSummary: toPaymentSummary(order.payment_summary),
 
-    payments: toPayments(order.payments),
+    // payments: toPayments(order.payments),
+    paymentSummary,
+
+    payments: normalizedPayments,
   };
 };
