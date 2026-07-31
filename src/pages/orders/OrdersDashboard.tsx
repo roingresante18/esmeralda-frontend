@@ -567,8 +567,6 @@ export default function OrdersDashboard() {
                         {order.client?.name || "Sin cliente"} /{" "}
                         {order.client?.phone || "Sin celular"} /{" "}
                         {order.municipality_snapshot || "Sin Municipalidad"}/
-                        {" Fecha entrega:"}
-                        {order.delivery_date || " sin fecha"}
                       </Typography>
 
                       {hasGps && (

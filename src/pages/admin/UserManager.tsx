@@ -47,7 +47,7 @@ const UserManager: React.FC = () => {
 
   const [openEdit, setOpenEdit] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-
+  const [editPassword, setEditPassword] = useState("");
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -104,20 +104,59 @@ const UserManager: React.FC = () => {
   // ✏️ Editar usuario
   const handleEdit = (user: User) => {
     setSelectedUser(user);
+    setEditPassword("");
     setOpenEdit(true);
   };
 
   const handleSave = async () => {
     if (!selectedUser) return;
 
+    if (
+      !selectedUser.full_name.trim() ||
+      !selectedUser.email.trim() ||
+      !selectedUser.role
+    ) {
+      alert("⚠️ Nombre, email y rol son obligatorios");
+      return;
+    }
+
+    if (editPassword && editPassword.length < 6) {
+      alert("⚠️ La nueva contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
     try {
-      await api.patch(`/users/${selectedUser.id}`, selectedUser);
+      const updateData: {
+        full_name: string;
+        email: string;
+        role: string;
+        password?: string;
+      } = {
+        full_name: selectedUser.full_name.trim(),
+        email: selectedUser.email.trim(),
+        role: selectedUser.role,
+      };
+
+      // Solo se envía password cuando el administrador escribió una nueva
+      if (editPassword.trim()) {
+        updateData.password = editPassword;
+      }
+
+      await api.patch(`/users/${selectedUser.id}`, updateData);
+
       setOpenEdit(false);
-      fetchUsers();
+      setSelectedUser(null);
+      setEditPassword("");
+      await fetchUsers();
+
       alert("✅ Usuario actualizado correctamente");
-    } catch (err) {
-      console.error(err);
-      alert("❌ Error al actualizar usuario");
+    } catch (err: any) {
+      console.error("Error al actualizar usuario:", err);
+
+      const message =
+        err.response?.data?.message || "Error al actualizar usuario";
+
+      alert(`❌ ${message}`);
     }
   };
 
@@ -243,8 +282,18 @@ const UserManager: React.FC = () => {
       </Box>
 
       {/* ✏️ Modal de edición */}
-      <Dialog open={openEdit} onClose={() => setOpenEdit(false)}>
+      <Dialog
+        open={openEdit}
+        onClose={() => {
+          setOpenEdit(false);
+          setSelectedUser(null);
+          setEditPassword("");
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>Editar Usuario</DialogTitle>
+
         <DialogContent>
           <TextField
             label="Nombre completo"
@@ -252,31 +301,64 @@ const UserManager: React.FC = () => {
             margin="dense"
             value={selectedUser?.full_name || ""}
             onChange={(e) =>
-              setSelectedUser({ ...selectedUser!, full_name: e.target.value })
+              setSelectedUser({
+                ...selectedUser!,
+                full_name: e.target.value,
+              })
             }
           />
+
           <TextField
             label="Email"
+            type="email"
             fullWidth
             margin="dense"
             value={selectedUser?.email || ""}
             onChange={(e) =>
-              setSelectedUser({ ...selectedUser!, email: e.target.value })
+              setSelectedUser({
+                ...selectedUser!,
+                email: e.target.value,
+              })
             }
           />
+
+          <TextField
+            label="Nueva contraseña"
+            type="password"
+            fullWidth
+            margin="dense"
+            value={editPassword}
+            onChange={(e) => setEditPassword(e.target.value)}
+            helperText="Dejar vacío para conservar la contraseña actual"
+            autoComplete="new-password"
+          />
+
           <Autocomplete
             options={rolesDisponibles}
             value={selectedUser?.role || ""}
             onChange={(_, newValue) =>
-              setSelectedUser({ ...selectedUser!, role: newValue || "" })
+              setSelectedUser({
+                ...selectedUser!,
+                role: newValue || "",
+              })
             }
             renderInput={(params) => (
               <TextField {...params} label="Rol" margin="dense" fullWidth />
             )}
           />
         </DialogContent>
+
         <DialogActions>
-          <Button onClick={() => setOpenEdit(false)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              setOpenEdit(false);
+              setSelectedUser(null);
+              setEditPassword("");
+            }}
+          >
+            Cancelar
+          </Button>
+
           <Button onClick={handleSave} variant="contained">
             Guardar
           </Button>
