@@ -41,7 +41,7 @@ type PaymentSummary = {
 
 type OrderPayment = {
   id: number;
-  amount: number;
+  amount: number | string;
   method: string;
   type: string;
   status: string;
