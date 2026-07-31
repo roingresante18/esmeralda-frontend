@@ -12,11 +12,17 @@ import {
   DialogActions,
   IconButton,
   Autocomplete,
+  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
+
 import api from "../../api/api";
 
 interface User {
@@ -25,6 +31,20 @@ interface User {
   email: string;
   role: string;
   is_active: boolean;
+}
+
+interface UserForm {
+  full_name: string;
+  email: string;
+  password: string;
+  role: string;
+}
+
+interface UpdateUserData {
+  full_name: string;
+  email: string;
+  role: string;
+  password?: string;
 }
 
 const rolesDisponibles = [
@@ -36,33 +56,58 @@ const rolesDisponibles = [
   "REPARTIDOR",
 ];
 
+const initialForm: UserForm = {
+  full_name: "",
+  email: "",
+  password: "",
+  role: "",
+};
+
 const UserManager: React.FC = () => {
+  // Usuarios
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
+
+  // Carga
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+
+  // Paginación
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 10,
   });
 
+  // Creación
+  const [form, setForm] = useState<UserForm>(initialForm);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+
+  // Edición
   const [openEdit, setOpenEdit] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editPassword, setEditPassword] = useState("");
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    password: "",
-    role: "",
-  });
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
-  // 📦 Obtener usuarios del backend
+  // Obtener usuarios
   const fetchUsers = async () => {
+    setLoadingUsers(true);
+
     try {
-      const res = await api.get("/users");
-      setUsers(res.data);
-      setFilteredUsers(res.data);
-    } catch (err) {
-      console.error("❌ Error al cargar usuarios:", err);
+      const response = await api.get<User[]>("/users");
+
+      setUsers(response.data);
+      setFilteredUsers(response.data);
+    } catch (error: any) {
+      console.error("Error al cargar usuarios:", error);
+
+      const message =
+        error.response?.data?.message || "No se pudieron cargar los usuarios";
+
+      alert(`❌ ${message}`);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -70,132 +115,227 @@ const UserManager: React.FC = () => {
     fetchUsers();
   }, []);
 
-  // 🔍 Filtrado en tiempo real
+  // Filtrar usuarios
   useEffect(() => {
-    const lower = search.toLowerCase();
-    const filtered = users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(lower) ||
-        u.email.toLowerCase().includes(lower) ||
-        u.role.toLowerCase().includes(lower),
-    );
-    setFilteredUsers(filtered);
-  }, [search, users]);
+    const normalizedSearch = search.trim().toLowerCase();
 
-  // ➕ Crear nuevo usuario
-  const handleAdd = async () => {
-    const { full_name, email, password, role } = form;
-    if (!full_name || !email || !password || !role) {
-      alert("⚠️ Completa todos los campos");
+    if (!normalizedSearch) {
+      setFilteredUsers(users);
       return;
     }
 
+    const filtered = users.filter((user) => {
+      return (
+        user.full_name.toLowerCase().includes(normalizedSearch) ||
+        user.email.toLowerCase().includes(normalizedSearch) ||
+        user.role.toLowerCase().includes(normalizedSearch)
+      );
+    });
+
+    setFilteredUsers(filtered);
+
+    // Volver a la primera página cuando se realiza una búsqueda
+    setPaginationModel((previous) => ({
+      ...previous,
+      page: 0,
+    }));
+  }, [search, users]);
+
+  // Crear usuario
+  const handleAdd = async () => {
+    const fullName = form.full_name.trim();
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
+    const role = form.role;
+
+    if (!fullName || !email || !password || !role) {
+      alert("⚠️ Completá todos los campos");
+      return;
+    }
+
+    if (password.length < 6) {
+      alert("⚠️ La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setCreatingUser(true);
+
     try {
-      await api.post("/users", { full_name, email, password, role });
+      await api.post("/users", {
+        full_name: fullName,
+        email,
+        password,
+        role,
+      });
+
+      setForm(initialForm);
+      setShowCreatePassword(false);
+
+      await fetchUsers();
+
       alert("✅ Usuario creado correctamente");
-      setForm({ full_name: "", email: "", password: "", role: "" });
-      fetchUsers();
-    } catch (err: any) {
-      console.error(err);
-      alert("❌ Error al crear usuario");
+    } catch (error: any) {
+      console.error("Error al crear usuario:", error);
+
+      const message =
+        error.response?.data?.message || "Error al crear el usuario";
+
+      alert(`❌ ${message}`);
+    } finally {
+      setCreatingUser(false);
     }
   };
 
-  // ✏️ Editar usuario
+  // Abrir modal de edición
   const handleEdit = (user: User) => {
-    setSelectedUser(user);
+    setSelectedUser({ ...user });
     setEditPassword("");
+    setShowEditPassword(false);
     setOpenEdit(true);
   };
 
+  // Cerrar modal de edición
+  const handleCloseEdit = () => {
+    if (savingUser) return;
+
+    setOpenEdit(false);
+    setSelectedUser(null);
+    setEditPassword("");
+    setShowEditPassword(false);
+  };
+
+  // Guardar usuario editado
   const handleSave = async () => {
     if (!selectedUser) return;
 
-    if (
-      !selectedUser.full_name.trim() ||
-      !selectedUser.email.trim() ||
-      !selectedUser.role
-    ) {
+    const fullName = selectedUser.full_name.trim();
+    const email = selectedUser.email.trim().toLowerCase();
+    const role = selectedUser.role;
+    const newPassword = editPassword.trim();
+
+    if (!fullName || !email || !role) {
       alert("⚠️ Nombre, email y rol son obligatorios");
       return;
     }
 
-    if (editPassword && editPassword.length < 6) {
+    if (newPassword && newPassword.length < 6) {
       alert("⚠️ La nueva contraseña debe tener al menos 6 caracteres");
       return;
     }
 
+    const updateData: UpdateUserData = {
+      full_name: fullName,
+      email,
+      role,
+    };
+
+    // La contraseña solo se envía cuando se escribió una nueva.
+    if (newPassword) {
+      updateData.password = newPassword;
+    }
+
+    setSavingUser(true);
+
     try {
-      const updateData: {
-        full_name: string;
-        email: string;
-        role: string;
-        password?: string;
-      } = {
-        full_name: selectedUser.full_name.trim(),
-        email: selectedUser.email.trim(),
-        role: selectedUser.role,
-      };
-
-      // Solo se envía password cuando el administrador escribió una nueva
-      if (editPassword.trim()) {
-        updateData.password = editPassword;
-      }
-
       await api.patch(`/users/${selectedUser.id}`, updateData);
 
-      setOpenEdit(false);
-      setSelectedUser(null);
-      setEditPassword("");
+      handleCloseEdit();
       await fetchUsers();
 
-      alert("✅ Usuario actualizado correctamente");
-    } catch (err: any) {
-      console.error("Error al actualizar usuario:", err);
+      alert(
+        newPassword
+          ? "✅ Usuario y contraseña actualizados correctamente"
+          : "✅ Usuario actualizado correctamente",
+      );
+    } catch (error: any) {
+      console.error("Error al actualizar usuario:", error);
 
       const message =
-        err.response?.data?.message || "Error al actualizar usuario";
+        error.response?.data?.message || "Error al actualizar el usuario";
+
+      alert(`❌ ${message}`);
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  // Eliminar usuario
+  const handleDelete = async (id: number) => {
+    const confirmed = window.confirm(
+      "¿Seguro que deseas eliminar este usuario?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/users/${id}`);
+
+      await fetchUsers();
+
+      alert("✅ Usuario eliminado correctamente");
+    } catch (error: any) {
+      console.error("Error al eliminar usuario:", error);
+
+      const message =
+        error.response?.data?.message || "Error al eliminar el usuario";
 
       alert(`❌ ${message}`);
     }
   };
 
-  // 🗑️ Eliminar usuario
-  const handleDelete = async (id: number) => {
-    if (window.confirm("¿Seguro que deseas eliminar este usuario?")) {
-      try {
-        await api.delete(`/users/${id}`);
-        fetchUsers();
-        alert("✅ Usuario eliminado");
-      } catch (err) {
-        console.error(err);
-        alert("❌ Error al eliminar usuario");
-      }
-    }
-  };
-
-  // 🧾 Columnas del DataGrid
-  const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 80 },
-    { field: "full_name", headerName: "Nombre", width: 200 },
-    { field: "email", headerName: "Email", width: 220 },
-    { field: "role", headerName: "Rol", width: 140 },
+  // Columnas de la tabla
+  const columns: GridColDef<User>[] = [
+    {
+      field: "id",
+      headerName: "ID",
+      width: 80,
+    },
+    {
+      field: "full_name",
+      headerName: "Nombre",
+      minWidth: 180,
+      flex: 1,
+    },
+    {
+      field: "email",
+      headerName: "Email",
+      minWidth: 220,
+      flex: 1,
+    },
+    {
+      field: "role",
+      headerName: "Rol",
+      width: 140,
+    },
     {
       field: "is_active",
       headerName: "Activo",
-      width: 100,
+      width: 110,
       renderCell: (params) => (params.row.is_active ? "✅ Sí" : "❌ No"),
     },
     {
       field: "actions",
       headerName: "Acciones",
       width: 150,
+      sortable: false,
+      filterable: false,
       renderCell: (params) => (
         <>
-          <IconButton color="primary" onClick={() => handleEdit(params.row)}>
+          <IconButton
+            color="primary"
+            aria-label={`Editar usuario ${params.row.full_name}`}
+            title="Editar usuario"
+            onClick={() => handleEdit(params.row)}
+          >
             <EditIcon />
           </IconButton>
-          <IconButton color="error" onClick={() => handleDelete(params.row.id)}>
+
+          <IconButton
+            color="error"
+            aria-label={`Eliminar usuario ${params.row.full_name}`}
+            title="Eliminar usuario"
+            onClick={() => handleDelete(params.row.id)}
+          >
             <DeleteIcon />
           </IconButton>
         </>
@@ -204,12 +344,12 @@ const UserManager: React.FC = () => {
   ];
 
   return (
-    <Container sx={{ mt: 5 }}>
+    <Container maxWidth="xl" sx={{ mt: 5, mb: 5 }}>
       <Typography variant="h5" gutterBottom fontWeight="bold">
         👥 Gestión de Usuarios
       </Typography>
 
-      {/* 🔍 Búsqueda y creación */}
+      {/* Búsqueda */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -220,79 +360,161 @@ const UserManager: React.FC = () => {
           label="Buscar usuario"
           variant="outlined"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por nombre, email o rol"
+          fullWidth
           sx={{ flex: 1 }}
         />
       </Stack>
 
-      {/* ➕ Formulario de nuevo usuario */}
+      {/* Formulario de creación */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(5, 1fr)" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            lg: "repeat(5, 1fr)",
+          },
           gap: 2,
           mb: 3,
+          alignItems: "start",
         }}
       >
         <TextField
           label="Nombre completo"
           value={form.full_name}
-          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              full_name: event.target.value,
+            }))
+          }
+          disabled={creatingUser}
+          fullWidth
         />
+
         <TextField
           label="Email"
+          type="email"
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              email: event.target.value,
+            }))
+          }
+          autoComplete="email"
+          disabled={creatingUser}
+          fullWidth
         />
+
         <TextField
           label="Contraseña"
-          type="password"
+          type={showCreatePassword ? "text" : "password"}
           value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              password: event.target.value,
+            }))
+          }
+          autoComplete="new-password"
+          helperText="Mínimo 6 caracteres"
+          disabled={creatingUser}
+          fullWidth
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    type="button"
+                    edge="end"
+                    disabled={creatingUser}
+                    aria-label={
+                      showCreatePassword
+                        ? "Ocultar contraseña"
+                        : "Mostrar contraseña"
+                    }
+                    title={
+                      showCreatePassword
+                        ? "Ocultar contraseña"
+                        : "Mostrar contraseña"
+                    }
+                    onClick={() =>
+                      setShowCreatePassword((previous) => !previous)
+                    }
+                    onMouseDown={(event) => event.preventDefault()}
+                  >
+                    {showCreatePassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         />
+
         <Autocomplete
           options={rolesDisponibles}
-          value={form.role}
-          onChange={(_, newValue) => setForm({ ...form, role: newValue || "" })}
+          value={form.role || null}
+          disabled={creatingUser}
+          onChange={(_, newValue) =>
+            setForm((previous) => ({
+              ...previous,
+              role: newValue || "",
+            }))
+          }
           renderInput={(params) => (
-            <TextField {...params} label="Rol" placeholder="Seleccionar" />
+            <TextField
+              {...params}
+              label="Rol"
+              placeholder="Seleccionar rol"
+              fullWidth
+            />
           )}
         />
+
         <Button
           variant="contained"
           color="primary"
-          startIcon={<AddIcon />}
+          startIcon={
+            creatingUser ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              <AddIcon />
+            )
+          }
           onClick={handleAdd}
+          disabled={creatingUser}
+          sx={{
+            minHeight: 56,
+          }}
         >
-          Agregar
+          {creatingUser ? "Agregando..." : "Agregar"}
         </Button>
       </Box>
 
-      {/* 📋 Tabla de usuarios */}
+      {/* Tabla */}
       <Box sx={{ height: 480, width: "100%" }}>
         <DataGrid
           rows={filteredUsers}
           columns={columns}
-          getRowId={(r) => r.id}
+          getRowId={(row) => row.id}
+          loading={loadingUsers}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[5, 10, 25]}
           disableRowSelectionOnClick
+          localeText={{
+            noRowsLabel: "No hay usuarios registrados",
+            noResultsOverlayLabel: "No se encontraron usuarios",
+          }}
         />
       </Box>
 
-      {/* ✏️ Modal de edición */}
-      <Dialog
-        open={openEdit}
-        onClose={() => {
-          setOpenEdit(false);
-          setSelectedUser(null);
-          setEditPassword("");
-        }}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Editar Usuario</DialogTitle>
+      {/* Modal de edición */}
+      <Dialog open={openEdit} onClose={handleCloseEdit} fullWidth maxWidth="sm">
+        <DialogTitle>Editar usuario</DialogTitle>
 
         <DialogContent>
           <TextField
@@ -300,11 +522,16 @@ const UserManager: React.FC = () => {
             fullWidth
             margin="dense"
             value={selectedUser?.full_name || ""}
-            onChange={(e) =>
-              setSelectedUser({
-                ...selectedUser!,
-                full_name: e.target.value,
-              })
+            disabled={savingUser}
+            onChange={(event) =>
+              setSelectedUser((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      full_name: event.target.value,
+                    }
+                  : previous,
+              )
             }
           />
 
@@ -314,33 +541,74 @@ const UserManager: React.FC = () => {
             fullWidth
             margin="dense"
             value={selectedUser?.email || ""}
-            onChange={(e) =>
-              setSelectedUser({
-                ...selectedUser!,
-                email: e.target.value,
-              })
+            autoComplete="email"
+            disabled={savingUser}
+            onChange={(event) =>
+              setSelectedUser((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      email: event.target.value,
+                    }
+                  : previous,
+              )
             }
           />
 
           <TextField
             label="Nueva contraseña"
-            type="password"
+            type={showEditPassword ? "text" : "password"}
             fullWidth
             margin="dense"
             value={editPassword}
-            onChange={(e) => setEditPassword(e.target.value)}
+            onChange={(event) => setEditPassword(event.target.value)}
             helperText="Dejar vacío para conservar la contraseña actual"
             autoComplete="new-password"
+            disabled={savingUser}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      type="button"
+                      edge="end"
+                      disabled={savingUser}
+                      aria-label={
+                        showEditPassword
+                          ? "Ocultar contraseña"
+                          : "Mostrar contraseña"
+                      }
+                      title={
+                        showEditPassword
+                          ? "Ocultar contraseña"
+                          : "Mostrar contraseña"
+                      }
+                      onClick={() =>
+                        setShowEditPassword((previous) => !previous)
+                      }
+                      onMouseDown={(event) => event.preventDefault()}
+                    >
+                      {showEditPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
 
           <Autocomplete
             options={rolesDisponibles}
-            value={selectedUser?.role || ""}
+            value={selectedUser?.role || null}
+            disabled={savingUser}
             onChange={(_, newValue) =>
-              setSelectedUser({
-                ...selectedUser!,
-                role: newValue || "",
-              })
+              setSelectedUser((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      role: newValue || "",
+                    }
+                  : previous,
+              )
             }
             renderInput={(params) => (
               <TextField {...params} label="Rol" margin="dense" fullWidth />
@@ -349,18 +617,21 @@ const UserManager: React.FC = () => {
         </DialogContent>
 
         <DialogActions>
-          <Button
-            onClick={() => {
-              setOpenEdit(false);
-              setSelectedUser(null);
-              setEditPassword("");
-            }}
-          >
+          <Button onClick={handleCloseEdit} disabled={savingUser}>
             Cancelar
           </Button>
 
-          <Button onClick={handleSave} variant="contained">
-            Guardar
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={savingUser}
+            startIcon={
+              savingUser ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : undefined
+            }
+          >
+            {savingUser ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>
       </Dialog>
