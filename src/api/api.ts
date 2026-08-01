@@ -1,8 +1,8 @@
 import axios from "axios";
 
-const baseURL =
-  import.meta.env.VITE_API_URL || "https://proyecto-esmeralda.onrender.com";
-
+// const baseURL =
+//   import.meta.env.VITE_API_URL || "https://proyecto-esmeralda.onrender.com";
+const baseURL = import.meta.env.VITE_API_URL || "https://api.esmeraldaweb.com";
 const api = axios.create({
   baseURL,
   timeout: 10000,
