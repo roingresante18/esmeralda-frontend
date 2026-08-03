@@ -1,4 +1,5 @@
 import React from "react";
+
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
@@ -6,9 +7,18 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Grid from "@mui/material/Grid";
+
 import { alpha, useTheme } from "@mui/material/styles";
+
 import { useNavigate } from "react-router-dom";
+
 import { useAuth } from "../../context/AuthContext";
+
+/*
+ * =========================================================
+ * ICONOS
+ * =========================================================
+ */
 
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import WarehouseIcon from "@mui/icons-material/Warehouse";
@@ -22,87 +32,180 @@ import AnalyticsIcon from "@mui/icons-material/Analytics";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
+/*
+ * NUEVO:
+ *
+ * Centro de comunicaciones con clientes.
+ */
+import CampaignIcon from "@mui/icons-material/Campaign";
+
 const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
+
   const { logout, user } = useAuth();
+
   const theme = useTheme();
+
+  /*
+   * =======================================================
+   * ACCIONES DEL PANEL ADMIN
+   * =======================================================
+   */
 
   const actions = [
     {
       title: "Productos",
+
       icon: <Inventory2Icon fontSize="large" />,
+
       color: theme.palette.success.main,
+
       path: "/products",
+
       description: "Agregar, editar o eliminar productos",
     },
+
     {
       title: "Stock",
+
       icon: <WarehouseIcon fontSize="large" />,
+
       color: theme.palette.info.main,
+
       path: "/stock",
+
       description: "Controlar el inventario",
     },
+
     {
       title: "Pedidos",
+
       icon: <ReceiptLongIcon fontSize="large" />,
+
       color: theme.palette.secondary.main,
+
       path: "/orders",
+
       description: "Ver y administrar pedidos",
     },
+
     {
       title: "Depósito",
+
       icon: <MoveToInboxIcon fontSize="large" />,
+
       color: theme.palette.success.dark,
+
       path: "/deposito",
+
       description: "Gestión de preparación de pedidos",
     },
+
     {
       title: "Control",
+
       icon: <FactCheckIcon fontSize="large" />,
+
       color: theme.palette.info.dark,
+
       path: "/controlDeposito",
+
       description: "Control de calidad de pedidos",
     },
+
     {
       title: "Logística",
+
       icon: <RouteIcon fontSize="large" />,
+
       color: theme.palette.secondary.dark,
+
       path: "/logistica",
+
       description: "Organización de entregas",
     },
+
     {
       title: "Reparto",
+
       icon: <LocalShippingIcon fontSize="large" />,
+
       color: theme.palette.primary.dark,
+
       path: "/repartidor",
+
       description: "Distribución de pedidos",
     },
+
     {
       title: "Clientes",
+
       icon: <GroupsIcon fontSize="large" />,
+
       color: theme.palette.warning.main,
+
       path: "/clients",
+
       description: "Registrar y gestionar clientes",
     },
+
     {
       title: "Informes",
+
       icon: <AnalyticsIcon fontSize="large" />,
+
       color: theme.palette.warning.dark,
+
       path: "/analytics",
+
       description: "Resumen comercial, operativo y financiero",
     },
+
+    /*
+     * =====================================================
+     * NUEVO: COMUNICACIONES
+     * =====================================================
+     *
+     * Desde acá el administrador podrá configurar:
+     *
+     * - WhatsApp Business;
+     * - Email SMTP;
+     * - mensajes automáticos por estado.
+     */
+
+    {
+      title: "Comunicaciones",
+
+      icon: <CampaignIcon fontSize="large" />,
+
+      color: theme.palette.info.main,
+
+      path: "/admin/communications",
+
+      description: "WhatsApp, email y avisos automáticos a clientes",
+    },
+
     {
       title: "Usuarios",
+
       icon: <AdminPanelSettingsIcon fontSize="large" />,
+
       color: theme.palette.primary.main,
+
       path: "/users",
+
       description: "Gestionar usuarios",
     },
+
     {
       title: "Perfil",
+
       icon: <AccountCircleIcon fontSize="large" />,
+
       color: theme.palette.grey[700],
+
       path: "/profile",
+
       description: "Editar tu información personal",
     },
   ];
@@ -111,21 +214,32 @@ const AdminPanel: React.FC = () => {
     <Box
       sx={{
         minHeight: "100vh",
+
         background: `linear-gradient(135deg, 
-          ${alpha(theme.palette.primary.light, 0.08)}, 
-          ${alpha(theme.palette.secondary.light, 0.08)})`,
+            ${alpha(theme.palette.primary.light, 0.08)}, 
+            ${alpha(theme.palette.secondary.light, 0.08)})`,
+
         py: 8,
       }}
     >
       <Container maxWidth="xl">
-        {/* HEADER */}
+        {/*
+         * ===================================================
+         * HEADER
+         * ===================================================
+         */}
+
         <Box textAlign="center" mb={6}>
           <Typography
             variant="h4"
             fontWeight="bold"
             sx={{
-              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              background: `linear-gradient(90deg, ${
+                theme.palette.primary.main
+              }, ${theme.palette.secondary.main})`,
+
               WebkitBackgroundClip: "text",
+
               WebkitTextFillColor: "transparent",
             }}
           >
@@ -137,33 +251,60 @@ const AdminPanel: React.FC = () => {
           </Typography>
         </Box>
 
-        {/* GRID DASHBOARD */}
+        {/*
+         * ===================================================
+         * GRID DASHBOARD
+         * ===================================================
+         */}
+
         <Grid container spacing={4}>
           {actions.map((action, index) => (
-            <Grid key={index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+            <Grid
+              key={action.path}
+              size={{
+                xs: 12,
+                sm: 6,
+                md: 4,
+                lg: 3,
+              }}
+            >
               <Paper
                 onClick={() =>
                   navigate(action.path, {
-                    state: { from: "/admin" },
+                    state: {
+                      from: "/admin",
+                    },
                   })
                 }
                 elevation={0}
                 sx={{
                   p: 4,
+
                   borderRadius: 4,
+
                   cursor: "pointer",
+
                   backdropFilter: "blur(6px)",
+
                   backgroundColor: alpha("#ffffff", 0.7),
+
                   border: `1px solid ${alpha(action.color, 0.2)}`,
+
                   transition: "all 0.35s cubic-bezier(.4,0,.2,1)",
+
                   transform: "translateY(20px)",
+
                   opacity: 0,
+
                   animation: `fadeSlide 0.6s ease forwards`,
+
                   animationDelay: `${index * 0.08}s`,
 
                   "&:hover": {
                     transform: "translateY(-8px) scale(1.02)",
+
                     boxShadow: `0 10px 30px ${alpha(action.color, 0.25)}`,
+
                     borderColor: action.color,
                   },
                 }}
@@ -172,15 +313,22 @@ const AdminPanel: React.FC = () => {
                   <Box
                     sx={{
                       width: 60,
+
                       height: 60,
+
                       borderRadius: "50%",
+
                       display: "flex",
+
                       alignItems: "center",
+
                       justifyContent: "center",
+
                       background: `linear-gradient(135deg, ${alpha(
                         action.color,
                         0.2,
                       )}, ${alpha(action.color, 0.05)})`,
+
                       color: action.color,
                     }}
                   >
@@ -202,8 +350,18 @@ const AdminPanel: React.FC = () => {
           ))}
         </Grid>
 
-        {/* LOGOUT */}
-        <Stack alignItems="center" sx={{ mt: 8 }}>
+        {/*
+         * ===================================================
+         * LOGOUT
+         * ===================================================
+         */}
+
+        <Stack
+          alignItems="center"
+          sx={{
+            mt: 8,
+          }}
+        >
           <Button
             variant="outlined"
             color="error"
@@ -211,8 +369,11 @@ const AdminPanel: React.FC = () => {
             onClick={logout}
             sx={{
               borderRadius: 3,
+
               px: 4,
+
               transition: "0.3s",
+
               "&:hover": {
                 transform: "scale(1.05)",
               },
@@ -223,16 +384,21 @@ const AdminPanel: React.FC = () => {
         </Stack>
       </Container>
 
-      {/* Animación global */}
+      {/*
+       * =====================================================
+       * ANIMACIÓN GLOBAL
+       * =====================================================
+       */}
+
       <style>
         {`
-          @keyframes fadeSlide {
-            to {
-              opacity: 1;
-              transform: translateY(0);
+            @keyframes fadeSlide {
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
             }
-          }
-        `}
+          `}
       </style>
     </Box>
   );
