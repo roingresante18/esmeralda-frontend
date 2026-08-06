@@ -114,7 +114,7 @@ const AdminPanel: React.FC = () => {
     },
 
     {
-      title: "Logística",
+      title: "Logística y Reparto",
 
       icon: <RouteIcon fontSize="large" />,
 

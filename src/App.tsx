@@ -10,9 +10,13 @@ import Dashboard from "./pages/Dashboard";
 import AdminPanel from "./pages/admin/AdminPanel";
 import VentasPanel from "./pages/orders/VentasPanel";
 import Unauthorized from "./pages/Unauthorized";
-
+import VehiclesPage from "./modules/logistics/pages/VehiclesPage";
 import { AuthProvider } from "./context/AuthContext";
+import LogisticsHomePage from "./modules/logistics/pages/LogisticsHomePage";
+import LogisticsShiftDetailPage from "./modules/logistics/pages/LogisticsShiftDetailPage";
+import LogisticsOrdersPage from "./modules/logistics/pages/LogisticsOrdersPage";
 
+import LogisticsShiftsPage from "./modules/logistics/pages/LogisticsShiftsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import OrderManager from "./pages/orders/OrderManager";
@@ -274,14 +278,14 @@ function App() {
            * =====================================================
            */}
 
-          <Route
+          {/* <Route
             path="/logistica"
             element={
               <ProtectedRoute roles={["ADMIN", "LOGISTICA", "REPARTIDOR"]}>
                 <LogisticsOrders />
               </ProtectedRoute>
             }
-          />
+          /> */}
 
           {/*
            * =====================================================
@@ -333,7 +337,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          <Route
+            path="/logistica/jornadas/:shiftId"
+            element={
+              <ProtectedRoute roles={["ADMIN", "LOGISTICA"]}>
+                <LogisticsShiftDetailPage />
+              </ProtectedRoute>
+            }
+          />
           {/*
            * =====================================================
            * ANALYTICS
@@ -348,7 +359,41 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/logistica"
+            element={
+              <ProtectedRoute roles={["ADMIN", "LOGISTICA"]}>
+                <LogisticsHomePage />
+              </ProtectedRoute>
+            }
+          />
 
+          <Route
+            path="/logistica/pedidos"
+            element={
+              <ProtectedRoute roles={["ADMIN", "LOGISTICA"]}>
+                <LogisticsOrders />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/logistica/jornadas"
+            element={
+              <ProtectedRoute roles={["ADMIN", "LOGISTICA"]}>
+                <LogisticsShiftsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/logistica/vehiculos"
+            element={
+              <ProtectedRoute roles={["ADMIN", "LOGISTICA"]}>
+                <VehiclesPage />
+              </ProtectedRoute>
+            }
+          />
           {/*
            * =====================================================
            * ALERTAS DE PRODUCTOS
