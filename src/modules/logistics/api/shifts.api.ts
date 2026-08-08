@@ -4,6 +4,7 @@ import type {
   AddOrdersToShiftPayload,
   CreateDriverShiftPayload,
   DriverShift,
+  DriverShiftEvent,
   DriverShiftHistory,
   DriverShiftOrder,
   UpdateDriverShiftPayload,
@@ -111,6 +112,36 @@ export async function getDriverShiftHistory(
 ): Promise<DriverShiftHistory[]> {
   const response = await api.get<DriverShiftHistory[]>(
     `/fleet/shifts/${shiftId}/history`,
+  );
+
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+/*
+ * =========================================================
+ * EVENTOS OPERATIVOS COMPLETOS
+ * =========================================================
+ *
+ * Devuelve TODOS los ciclos guardados en:
+ *
+ * fleet_driver_shift_events
+ *
+ * Ejemplo:
+ *
+ * SUSPENDED
+ * RESUMED
+ * SUSPENDED
+ * RESUMED
+ *
+ * No dependemos de suspended_at/resumed_at de DriverShift,
+ * que solamente representan el estado más reciente.
+ */
+
+export async function getDriverShiftEvents(
+  shiftId: number,
+): Promise<DriverShiftEvent[]> {
+  const response = await api.get<DriverShiftEvent[]>(
+    `/fleet/shifts/${shiftId}/events`,
   );
 
   return Array.isArray(response.data) ? response.data : [];
@@ -227,7 +258,7 @@ export async function cancelDriverShift(
  * - OrderDelivery;
  * - odómetros.
  *
- * Solamente cambia:
+ * Solamente:
  *
  * ACTIVE → SUSPENDED
  */

@@ -42,16 +42,28 @@ import {
   updateDriverShift,
   suspendDriverShift,
   resumeDriverShift,
+  getDriverShiftEvents,
 } from "../api/shifts.api";
 
 import LogisticsNavigation from "../components/LogisticsNavigation";
 import ShiftRouteMapDialog from "../components/ShiftRouteMapDialog";
+
+import ShiftAuditTimeline from "../components/ShiftAuditTimeline";
+
+import { getShiftTelemetryEvents } from "../api/telemetry-audit.api";
+
+import { getShiftRoute } from "../api/telemetry.api";
+
+import type { TelemetryAuditEvent } from "../types/telemetry-audit.types";
+
+import type { ShiftRouteDelivery } from "../types/telemetry.types";
 
 import type {
   DriverShift,
   DriverShiftOrder,
   DriverShiftStatus,
   DriverShiftHistory,
+  DriverShiftEvent,
 } from "../types/shift.types";
 
 /*
@@ -372,7 +384,33 @@ export default function LogisticsShiftDetailPage() {
 
   const [shiftHistory, setShiftHistory] = useState<DriverShiftHistory[]>([]);
 
+  /*
+   * Historial operativo completo.
+   *
+   * Cada suspensión/reanudación vive como registro
+   * independiente en fleet_driver_shift_events.
+   */
+  const [shiftEvents, setShiftEvents] = useState<DriverShiftEvent[]>([]);
+
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  /*
+   * =========================================================
+   * AUDITORÍA UNIFICADA
+   * =========================================================
+   */
+
+  const [telemetryAuditEvents, setTelemetryAuditEvents] = useState<
+    TelemetryAuditEvent[]
+  >([]);
+
+  const [auditDeliveries, setAuditDeliveries] = useState<ShiftRouteDelivery[]>(
+    [],
+  );
+
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const [auditError, setAuditError] = useState<string | null>(null);
   const loadDetail = useCallback(async () => {
     if (!Number.isInteger(numericShiftId) || numericShiftId <= 0) {
       setError("Identificador de jornada inválido.");
@@ -509,6 +547,105 @@ export default function LogisticsShiftDetailPage() {
       setHistoryLoading(false);
     }
   }, [numericShiftId]);
+
+  /*
+   * =========================================================
+   * CARGAR EVENTOS OPERATIVOS COMPLETOS
+   * =========================================================
+   */
+
+  const loadShiftEvents = useCallback(async () => {
+    if (!Number.isInteger(numericShiftId) || numericShiftId <= 0) {
+      return;
+    }
+
+    try {
+      const data = await getDriverShiftEvents(numericShiftId);
+
+      setShiftEvents(data);
+    } catch (error) {
+      console.error("[LOGISTICS][SHIFT EVENTS]", error);
+
+      setShiftEvents([]);
+    }
+  }, [numericShiftId]);
+
+  /*
+   * Cargamos ambos historiales al abrir el detalle.
+   */
+  useEffect(() => {
+    void loadHistory();
+
+    void loadShiftEvents();
+  }, [loadHistory, loadShiftEvents]);
+
+  /*
+   * =========================================================
+   * CARGAR AUDITORÍA TÉCNICA + ENTREGAS
+   * =========================================================
+   *
+   * Se consultan dos fuentes:
+   *
+   * - /fleet/telemetry/shifts/:id/events
+   * - /fleet/telemetry/shifts/:id/route
+   *
+   * /route ya contiene los intentos de entrega con GPS real.
+   */
+
+  const loadAudit = useCallback(async () => {
+    if (!Number.isInteger(numericShiftId) || numericShiftId <= 0) {
+      return;
+    }
+
+    try {
+      setAuditLoading(true);
+
+      setAuditError(null);
+
+      const [telemetryResult, routeResult] = await Promise.allSettled([
+        getShiftTelemetryEvents(numericShiftId),
+
+        getShiftRoute(numericShiftId),
+      ]);
+
+      if (telemetryResult.status === "fulfilled") {
+        setTelemetryAuditEvents(telemetryResult.value);
+      } else {
+        console.error("[LOGISTICS][AUDIT][TELEMETRY]", telemetryResult.reason);
+
+        setTelemetryAuditEvents([]);
+
+        setAuditError(
+          "No se pudieron cargar todos los eventos de telemetría. El resto de la auditoría sigue disponible.",
+        );
+      }
+
+      if (routeResult.status === "fulfilled") {
+        setAuditDeliveries(
+          Array.isArray(routeResult.value.deliveries)
+            ? routeResult.value.deliveries
+            : [],
+        );
+      } else {
+        console.error("[LOGISTICS][AUDIT][ROUTE]", routeResult.reason);
+
+        setAuditDeliveries([]);
+
+        setAuditError(
+          (current) =>
+            current ||
+            "No se pudieron cargar los marcadores de entrega de la jornada.",
+        );
+      }
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [numericShiftId]);
+
+  useEffect(() => {
+    void loadAudit();
+  }, [loadAudit]);
+
   /*
    * =======================================================
    * TABLA DE PEDIDOS
@@ -668,7 +805,12 @@ export default function LogisticsShiftDetailPage() {
 
       setCancelReason("");
 
-      await loadDetail();
+      await Promise.all([
+        loadDetail(),
+        loadHistory(),
+        loadShiftEvents(),
+        loadAudit(),
+      ]);
     } catch (error: any) {
       console.error("[LOGISTICS][CANCEL SHIFT]", error);
 
@@ -723,7 +865,12 @@ export default function LogisticsShiftDetailPage() {
 
       setSuspendReason("");
 
-      await loadDetail();
+      await Promise.all([
+        loadDetail(),
+        loadHistory(),
+        loadShiftEvents(),
+        loadAudit(),
+      ]);
     } catch (error: any) {
       console.error("[LOGISTICS][SUSPEND SHIFT]", error);
 
@@ -764,7 +911,12 @@ export default function LogisticsShiftDetailPage() {
 
       await resumeDriverShift(shift.id);
 
-      await loadDetail();
+      await Promise.all([
+        loadDetail(),
+        loadHistory(),
+        loadShiftEvents(),
+        loadAudit(),
+      ]);
     } catch (error: any) {
       console.error("[LOGISTICS][RESUME SHIFT]", error);
 
@@ -863,7 +1015,12 @@ export default function LogisticsShiftDetailPage() {
 
       setEditDialogOpen(false);
 
-      await Promise.all([loadDetail(), loadHistory()]);
+      await Promise.all([
+        loadDetail(),
+        loadHistory(),
+        loadShiftEvents(),
+        loadAudit(),
+      ]);
     } catch (error: any) {
       console.error("[LOGISTICS][UPDATE SHIFT]", error);
 
@@ -959,7 +1116,14 @@ export default function LogisticsShiftDetailPage() {
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
-              onClick={() => void loadDetail()}
+              onClick={() =>
+                void Promise.all([
+                  loadDetail(),
+                  loadHistory(),
+                  loadShiftEvents(),
+                  loadAudit(),
+                ])
+              }
               disabled={loading}
             >
               Actualizar
@@ -1349,90 +1513,20 @@ export default function LogisticsShiftDetailPage() {
             </Box>
           </Stack>
         </Paper>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 3,
-            borderRadius: 3,
-          }}
-        >
-          <Stack direction="row" spacing={1} alignItems="center" mb={2}>
-            <HistoryIcon color="primary" />
+        {/* =====================================================
+            AUDITORÍA UNIFICADA
+            ===================================================== */}
 
-            <Typography variant="h6" fontWeight={800}>
-              Historial administrativo
-            </Typography>
-          </Stack>
+        <ShiftAuditTimeline
+          shift={shift}
+          administrativeHistory={shiftHistory}
+          operationalEvents={shiftEvents}
+          telemetryEvents={telemetryAuditEvents}
+          deliveries={auditDeliveries}
+          loading={historyLoading || auditLoading}
+          telemetryError={auditError}
+        />
 
-          {historyLoading ? (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <CircularProgress size={20} />
-
-              <Typography color="text.secondary">
-                Cargando historial...
-              </Typography>
-            </Stack>
-          ) : shiftHistory.length === 0 ? (
-            <Typography color="text.secondary">
-              Esta jornada todavía no tiene modificaciones administrativas
-              registradas.
-            </Typography>
-          ) : (
-            <Stack spacing={2}>
-              {shiftHistory.map((history) => (
-                <Paper
-                  key={history.id}
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    borderRadius: 2,
-                  }}
-                >
-                  <Stack spacing={0.5}>
-                    <Stack
-                      direction={{
-                        xs: "column",
-                        sm: "row",
-                      }}
-                      justifyContent="space-between"
-                      spacing={1}
-                    >
-                      <Typography fontWeight={800}>
-                        {history.action === "UPDATED"
-                          ? "Jornada modificada"
-                          : history.action}
-                      </Typography>
-
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDateTime(history.created_at)}
-                      </Typography>
-                    </Stack>
-
-                    <Typography variant="body2">
-                      {history.comment || "Cambio administrativo registrado"}
-                    </Typography>
-
-                    <Typography variant="caption" color="text.secondary">
-                      Usuario:{" "}
-                      {history.changed_by?.full_name ||
-                        history.changed_by?.email ||
-                        "—"}
-                    </Typography>
-
-                    {history.previous_scheduled_date !==
-                      history.new_scheduled_date && (
-                      <Typography variant="caption" color="text.secondary">
-                        Fecha:{" "}
-                        {formatDate(history.previous_scheduled_date ?? "")} →{" "}
-                        {formatDate(history.new_scheduled_date ?? "")}
-                      </Typography>
-                    )}
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
-          )}
-        </Paper>
         {/* RESUMEN PEDIDOS */}
 
         <Paper

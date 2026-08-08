@@ -5,15 +5,17 @@ import type { Vehicle } from "./vehicle.types";
  * ESTADOS DE JORNADA
  * =========================================================
  */
+
 export type DriverShiftStatus =
   | "SCHEDULED"
   | "ACTIVE"
   | "SUSPENDED"
   | "FINISHED"
   | "CANCELLED";
+
 /*
  * =========================================================
- * REPARTIDOR
+ * REPARTIDOR / USUARIO RELACIONADO
  * =========================================================
  */
 
@@ -215,11 +217,31 @@ export interface DriverShift {
   updated_at?: string;
 
   shiftOrders?: DriverShiftOrder[];
+
+  /*
+   * =======================================================
+   * CANCELACIÓN
+   * =======================================================
+   */
+
   cancelled_at?: string | null;
 
   cancellation_reason?: string | null;
 
   cancelled_by?: ShiftDriver | null;
+
+  /*
+   * =======================================================
+   * ÚLTIMO ESTADO DE SUSPENSIÓN / REANUDACIÓN
+   * =======================================================
+   *
+   * Estos campos representan el último estado operativo.
+   *
+   * El historial COMPLETO vive en:
+   *
+   * fleet_driver_shift_events
+   */
+
   suspended_at?: string | null;
 
   suspension_reason?: string | null;
@@ -236,14 +258,10 @@ export interface DriverShift {
  * CREAR JORNADA
  * =========================================================
  *
- * IMPORTANTE:
- *
- * order_ids es obligatorio.
- *
  * Una jornada debe nacer con al menos un pedido.
  *
  * El odómetro inicial NO forma parte de este payload.
- * Lo carga el chofer físicamente al iniciar la jornada.
+ * Lo carga físicamente el chofer al iniciar la jornada.
  */
 
 export interface CreateDriverShiftPayload {
@@ -262,10 +280,6 @@ export interface CreateDriverShiftPayload {
  * =========================================================
  * AGREGAR PEDIDOS A UNA JORNADA EXISTENTE
  * =========================================================
- *
- * Conservamos este tipo porque el backend todavía permite
- * agregar pedidos posteriormente mientras la jornada siga
- * SCHEDULED.
  */
 
 export interface AddOrdersToShiftPayload {
@@ -286,8 +300,15 @@ export interface UpdateDriverShiftPayload {
 
 /*
  * =========================================================
- * HISTORIAL DE JORNADA
+ * HISTORIAL ADMINISTRATIVO DE EDICIÓN
  * =========================================================
+ *
+ * Este historial contiene modificaciones como:
+ *
+ * - cambio de fecha;
+ * - cambio de observaciones.
+ *
+ * NO reemplaza DriverShiftEvent.
  */
 
 export interface DriverShiftHistory {
@@ -308,4 +329,30 @@ export interface DriverShiftHistory {
   created_at: string;
 
   changed_by?: ShiftDriver | null;
+}
+
+/*
+ * =========================================================
+ * EVENTOS OPERATIVOS DE JORNADA
+ * =========================================================
+ *
+ * Corresponde a:
+ *
+ * fleet_driver_shift_events
+ *
+ * Cada suspensión/reanudación es un registro independiente.
+ */
+
+export type DriverShiftEventType = "SUSPENDED" | "RESUMED";
+
+export interface DriverShiftEvent {
+  id: number;
+
+  event_type: DriverShiftEventType;
+
+  reason?: string | null;
+
+  created_by?: ShiftDriver | null;
+
+  created_at: string;
 }
